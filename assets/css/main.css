@@ -1,0 +1,399 @@
+/* MOBILE's FIRST - Custom properties */
+/* This classes will be then modified for bigger screens */
+
+a {
+	text-decoration-thickness: 1px;
+	text-decoration: none;
+}
+
+#hobbiesH4 {
+	text-align: center;
+}
+
+.tex sub, .latex sub, .latex sup {
+	text-transform: uppercase;
+  }
+
+  .tex sub, .latex sub {
+	vertical-align: -0.5ex;
+	margin-left: -0.1667em;
+	margin-right: -0.125em;
+  }
+
+  .tex, .latex, .tex sub, .latex sub {
+	font-size: 1em;
+  }
+
+  .latex sup {
+	font-size: 0.85em;
+	vertical-align: 0.15em;
+	margin-left: -0.36em;
+	margin-right: -0.15em;
+  }
+
+
+
+#hobbie1,
+#hobbie2,
+#hobbie3 {
+	text-align: center;
+	margin-top: 1em;
+}
+
+.abme-honors-bullet {
+	font-size: 16px;
+}
+
+/* GENERAL CSS */
+#main-content {
+	margin-top: 20px;
+}
+
+li>.active {
+	font-weight: 500;
+}
+
+.trnsf-thin {
+	font-weight: 300;
+}
+
+.trnsf-italic {
+	font-style: italic;
+}
+
+.justify {
+	text-align: justify;
+	text-justify: inter-word;
+}
+
+.lucida-console {
+	font-family: 'Lucida Console', monospace;
+}
+
+/* Related*/
+.profilepicture {
+	max-height: 300px;
+	min-width: 150px;
+	min-height: 150px;
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.fseneca {
+	max-width: 50%;
+	height: auto;
+}
+
+.fseneca:hover {
+	transform: scale(1.05, 1.05);
+}
+
+/* PUBLICATIONS - Related */
+.pub-block {
+	border-left: 2px #D9DDDC solid;
+	padding-left: 15px;
+}
+
+.pub-year-h2 {
+	font-size: 3.2em;
+	font-weight: 100;
+}
+
+.pub-authors {
+	font-weight: 400;
+}
+
+.pub-authors .pub-author {
+	font-weight: 500;
+}
+
+.pub-congress {
+	font-weight: 100;
+}
+
+.pub-force-margin-left {
+	margin-left: 10px !important;
+}
+
+/* ACADEMIC - Related */
+.academic-year-h2 {
+	font-size: 3.2em;
+	font-weight: 100;
+}
+
+.academic-block {
+	border-left: 2px #22517d solid;
+	padding-left: 15px;
+}
+
+.academic-name {
+	color: #838f9b;
+}
+
+.academic-rol {
+	font-weight: 400;
+}
+
+.academic-year {
+	font-weight: 100;
+}
+
+/* OPTION BUTTON */
+.options-button {
+	position: fixed;
+
+	height: 50px;
+	width: 50px;
+	cursor: pointer;
+
+	border-radius: 100%;
+
+	bottom: 25px;
+	right: 25px;
+
+	display: inline-block;
+
+	font-size: 1.2em;
+	vertical-align: middle;
+	text-align: center;
+
+	padding-top: .35em;
+}
+
+.options-button i,
+img {
+	margin: auto;
+	z-index: -999;
+}
+
+#options-toggler {
+	transition: .2s;
+}
+
+#options-toggler:hover {
+	transform: scale(1.09, 1.09);
+}
+
+#theme {
+	height: 40px;
+	width: 40px;
+
+	bottom: 85px !important;
+	right: 30px !important;
+
+	font-size: 1em;
+
+	-webkit-transition: background-color .5s;
+	/* For Safari 3.0 to 6.0 */
+	transition: background-color .5s;
+	/* For modern browsers */
+}
+
+#lan {
+	height: 40px;
+	width: 40px;
+
+	bottom: 130px;
+	right: 30px;
+
+	font-size: 1em;
+
+	-webkit-transition: background-color .5s;
+	/* For Safari 3.0 to 6.0 */
+	transition: background-color .5s;
+	/* For modern browsers */
+}
+
+.lang-flag {
+	height: 15px;
+	width: 22.5px;
+	vertical-align: 0px;
+}
+
+/* BLOG - Related */
+.blog-info {
+	font-weight: 100;
+	width: 100%;
+	clear: both;
+	display: block;
+}
+
+.blog-short {
+	font-weight: 400;
+	font-size: 14px;
+}
+
+.blog-tags {
+	text-align: right;
+}
+
+.blog-tags>.tag {
+	border-radius: 100px;
+	padding: 4px;
+	font-size: 12px;
+	font-weight: 600;
+	box-shadow: 0px 3px 10px rgba(0, 0, 0, 0.4);
+	color: white;
+}
+
+.blog-tags>.t-purple {
+	background-color: rgb(137, 70, 255, 0.8);
+}
+
+.blog-tags>.t-lime {
+	background-color: rgba(118, 185, 0, 0.8);
+}
+
+.blog-tags>.t-sky {
+	background-color: rgba(37, 197, 223, 0.8);
+}
+
+.clickable {
+	border-radius: 20px;
+	border: 2px #D9DDDC solid;
+	padding: 15px;
+	cursor: pointer;
+	transition: .3s;
+	box-shadow: 0px 3px 50px rgba(0, 0, 0, 0.2);
+}
+
+.clickable:hover {
+	box-shadow: 0px 3px 50px rgba(0, 0, 0, 0.3);
+	transform: scale(1.03, 1.03);
+}
+
+/* MEDIA QUERIES */
+/* BIGGER SCREENS */
+@media (min-width: 768px) {
+
+	#hobbiesH4 {
+		text-align: left;
+	}
+
+	#hobbie1,
+	#hobbie2,
+	#hobbie3 {
+		text-align: left;
+		margin-top: 0;
+	}
+
+	.profilepicture {
+		margin-left: 0%;
+		margin-right: 0%;
+	}
+
+	.abme-honors-bullet {
+		margin-left: 40px;
+	}
+}
+
+
+.switch {
+	position: relative;
+	display: inline-block;
+	margin: 0 5px;
+}
+
+.switch>span {
+	position: absolute;
+	top: 14px;
+	pointer-events: none;
+	font-family: 'Helvetica', Arial, sans-serif;
+	font-weight: bold;
+	font-size: 12px;
+	text-transform: uppercase;
+	text-shadow: 0 1px 0 rgba(0, 0, 0, .06);
+	width: 50%;
+	text-align: center;
+}
+
+input.check-toggle-round-flat:checked~.off {
+	color: #F36F25;
+}
+
+input.check-toggle-round-flat:checked~.on {
+	color: #fff;
+}
+
+.switch>span.on {
+	left: 0;
+	padding-left: 2px;
+	color: #F36F25;
+}
+
+.switch>span.off {
+	right: 0;
+	padding-right: 4px;
+	color: #fff;
+}
+
+.check-toggle {
+	position: absolute;
+	margin-left: -9999px;
+	visibility: hidden;
+}
+
+.check-toggle+label {
+	display: block;
+	position: relative;
+	cursor: pointer;
+	outline: none;
+	-webkit-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+}
+
+input.check-toggle-round-flat+label {
+	padding: 2px;
+	width: 97px;
+	height: 35px;
+	background-color: #F36F25;
+	-webkit-border-radius: 60px;
+	-moz-border-radius: 60px;
+	-ms-border-radius: 60px;
+	-o-border-radius: 60px;
+	border-radius: 60px;
+}
+
+input.check-toggle-round-flat+label:before,
+input.check-toggle-round-flat+label:after {
+	display: block;
+	position: absolute;
+	content: "";
+}
+
+input.check-toggle-round-flat+label:before {
+	top: 2px;
+	left: 2px;
+	bottom: 2px;
+	right: 2px;
+	background-color: #F36F25;
+	-webkit- -moz-border-radius: 60px;
+	-ms-border-radius: 60px;
+	-o-border-radius: 60px;
+	border-radius: 60px;
+}
+
+input.check-toggle-round-flat+label:after {
+	top: 4px;
+	left: 4px;
+	bottom: 4px;
+	width: 48px;
+	background-color: #fff;
+	-webkit-border-radius: 52px;
+	-moz-border-radius: 52px;
+	-ms-border-radius: 52px;
+	-o-border-radius: 52px;
+	border-radius: 52px;
+	-webkit-transition: margin 0.2s;
+	-moz-transition: margin 0.2s;
+	-o-transition: margin 0.2s;
+	transition: margin 0.2s;
+}
+
+input.check-toggle-round-flat:checked+label {}
+
+input.check-toggle-round-flat:checked+label:after {
+	margin-left: 44px;
+}
