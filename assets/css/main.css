@@ -307,6 +307,14 @@ img {
 		align-items: center;
 	}
 
+	#main-content > .content > .col-md-3.language {
+		position: sticky;
+		top: 5.5rem;
+		align-self: flex-start;
+		max-height: calc(100vh - 7rem);
+		overflow-y: auto;
+	}
+
 	#language-toggle {
 		position: static;
 		transform: none;
