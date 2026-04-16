@@ -9,48 +9,25 @@ $('#academicContent').hide();
 /* Template
 $('#nameContent').hide();
 */
-$('#theme').hide();
-$('#lan').hide();
 
 $(document).ready(function(){
 
-	// First time, check the theme
-	if(localStorage.getItem("theme") === null){
-		localStorage.theme = "dark";
-		if (window.matchMedia('(prefers-color-scheme: light)').matches)
-			localStorage.theme = "light";
-	}
+	// Force light mode only
+	localStorage.theme = "light";
 	
 	// First time, check the locale
 	let userLang = navigator.language || navigator.userLanguage;
 	if(localStorage.getItem("lan") === null){
 		localStorage.lan = "en";
-		if (userLang.split('-')[0] == "es")
+		if (userLang.split('-')[0] == "bn" || userLang.split('-')[0] == "es")
 			localStorage.lan = "es";
 	}
 
-	// Maybe first time or not, so load the localStorage value
-	$('<link>').appendTo('head').attr({
-		type: 'text/css', 
-		rel: 'stylesheet',
-		href: 'assets/css/light.css'
-	});
-	if (localStorage.theme == "dark") {
-		// Handle menu
-		$("link[href='assets/css/light.css']").remove();
-		$('<link>').appendTo('head').attr({
-			type: 'text/css', 
-			rel: 'stylesheet',
-			href: 'assets/css/dark.css'
-		});
-		$('#theme').empty().append("<i class='fa-duotone fa-lightbulb-slash'></i>");
-	}
-	// Done because light is the one by default
 	if(localStorage.lan == "es") {
-		$('#lan img').attr("src","/assets/img/bn_flag.webp");
-		$('#lan').addClass("es");
+		$('#language-toggle').addClass("bn");
 	}
 	updateLanguage();
+	initializeDefaultSection();
 
 	// Handle 'About Me' content
 	$('#aboutme').click(function(e) {
@@ -68,6 +45,15 @@ $(document).ready(function(){
 			activateDiv('#aboutmeContent');
 		}
 
+	});
+
+	$('#navbarList .nav-link').click(function() {
+		if ($(window).width() < 768) {
+			const navbar = document.getElementById('collapsingNavbar3');
+			if (navbar && navbar.classList.contains('show')) {
+				bootstrap.Collapse.getOrCreateInstance(navbar).hide();
+			}
+		}
 	});
 
 	// Handle 'Education' content
@@ -230,77 +216,56 @@ $(document).ready(function(){
 		$('#tutorialsContent').focus();
 	}
 
-	// Controls the options menu
-	$('#options-toggler').click(function(e) {
-		if(!$(e.currentTarget).hasClass('active')) {
-			$(e.currentTarget).addClass('active');
-			$('#theme').show("fast");
-			$('#lan').show("fast");
-		}
-		else {
-			$(e.currentTarget).removeClass('active');
-			$('#theme').hide("fast");
-			$('#lan').hide("fast");
-		}
-	})
-
-	// Animates the theme button + functionality
-	$('#theme').click(function(e) {
-		if(localStorage.theme != "dark"){
-
-			$('#theme').empty().append("<i class='fa-duotone fa-lightbulb-slash'></i>");
-
-			localStorage.theme = "dark"
-			
-			$("link[href='assets/css/light.css']").remove();
-			$('<link>').appendTo('head').attr({
-				type: 'text/css', 
-				rel: 'stylesheet',
-				href: 'assets/css/dark.css'
-			});
-		}
-		else {
-
-			$('#theme').empty().append("<i class='fa-duotone fa-lightbulb'></i>");
-
-			localStorage.theme = "light"
-			
-			$("link[href='assets/css/dark.css']").remove();
-			$('<link>').appendTo('head').attr({
-				type: 'text/css', 
-				rel: 'stylesheet',
-				href: 'assets/css/light.css'
-			});
-		}
-	})
-
-	// Animates the lan button + functionality
-	$('#lan').click(function(e) {
+	// Language toggle in header
+	$('#language-toggle').click(function(e) {
 		if(!$(e.currentTarget).hasClass('bn')){
 			$(e.currentTarget).addClass('bn');
-
-			// $('#lan img').attr("src","/assets/img/bn_flag.webp");
-			$('#lan p').text("BN");
-			localStorage.lan = "es"
+			localStorage.lan = "es";
 		}
 		else {
 			$(e.currentTarget).removeClass('bn');
-
-			// $('#lan img').attr("src","/assets/img/en_flag.webp");
-			$('#lan p').text("EN");
-			localStorage.lan = "en"
+			localStorage.lan = "en";
 		}
 
 		updateLanguage();
-	})
+	});
 
 });
 
 function updateLanguage() {
 	let lang = localStorage.lan;
 	$(".language *").each(function(){
-		$(this).html( $(this).data(lang) );
+		const translated = $(this).data(lang);
+		if (translated !== undefined) {
+			$(this).html(translated);
+		}
 	});
+
+	const toggleText = lang === "es" ? "BN" : "EN";
+	$('#language-toggle').text(toggleText);
+}
+
+function initializeDefaultSection() {
+	const defaultSection = window.defaultSection || "aboutme";
+	const sectionMap = {
+		aboutme: "#aboutmeContent",
+		education: "#educationContent",
+		publications: "#publicationsContent",
+		academic: "#academicContent",
+		tutorials: "#tutorialsContent",
+		experience: "#experienceContent",
+		conferences: "#conferencesContent",
+		projects: "#projectsContent"
+	};
+
+	if (!sectionMap[defaultSection]) {
+		return;
+	}
+
+	clearActiveLinks();
+	$(`#${defaultSection}`).addClass("active");
+	clearActiveDivs();
+	$(sectionMap[defaultSection]).addClass("active").show();
 }
 
 function clearActiveLinks() {

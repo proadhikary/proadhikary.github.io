@@ -49,6 +49,30 @@ a {
 	margin-top: 20px;
 }
 
+#top-nav {
+	position: sticky;
+	top: 0;
+	z-index: 1030;
+}
+
+.navbar-controls {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.navbar-lang-wrap {
+	display: flex;
+	align-items: center;
+}
+
+#language-toggle {
+	min-width: 58px;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+}
+
 li>.active {
 	font-weight: 500;
 }
@@ -265,6 +289,35 @@ img {
 /* MEDIA QUERIES */
 /* BIGGER SCREENS */
 @media (min-width: 768px) {
+	#top-nav .container {
+		display: flex;
+		align-items: center;
+	}
+
+	#language-toggle {
+		position: static;
+		transform: none;
+	}
+
+	#collapsingNavbar3 {
+		flex-grow: 0;
+		justify-content: flex-end !important;
+		margin-left: auto;
+		padding-right: 0;
+	}
+
+	#collapsingNavbar3 .navbar-nav {
+		margin-left: 0 !important;
+		margin-right: 0 !important;
+	}
+
+	#top-nav .navbar-lang-wrap {
+		margin-left: 12px;
+	}
+
+	#top-nav .navbar-controls {
+		margin-left: 8px;
+	}
 
 	#hobbiesH4 {
 		text-align: left;
@@ -396,4 +449,32 @@ input.check-toggle-round-flat:checked+label {}
 
 input.check-toggle-round-flat:checked+label:after {
 	margin-left: 44px;
+}
+
+@media (max-width: 767.98px) {
+	#top-nav .container {
+		padding-left: 0.9rem;
+		padding-right: 0.9rem;
+	}
+
+	#top-nav .navbar-lang-wrap {
+		margin-left: auto;
+	}
+
+	.navbar-brand {
+		font-size: 1rem;
+	}
+
+	#collapsingNavbar3 {
+		padding-top: 0.35rem;
+	}
+
+	#navbarList {
+		width: 100%;
+	}
+
+	#navbarList .nav-link {
+		padding-top: 0.45rem;
+		padding-bottom: 0.45rem;
+	}
 }
