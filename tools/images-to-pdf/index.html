@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Images to PDF | Lab</title>
+	<meta name="description" content="Convert JPG and PNG images into a single PDF in your browser. Free and private. Nothing is uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">PDF</div>
+			<h1>Images to PDF</h1>
+			<p>Scanned forms, signed pages, whiteboard photos: turn a stack of images into one tidy PDF.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-images"></i></div>
+			<strong>Drop images here</strong>
+			<span>JPG, PNG, WebP. Click to choose</span>
+		</div>
+
+		<ul class="file-list" id="list"></ul>
+
+		<div class="panel">
+			<div class="grid-2">
+				<label class="field">Page size
+					<select id="size">
+						<option value="fit">Fit to image</option>
+						<option value="a4" selected>A4</option>
+						<option value="letter">US Letter</option>
+					</select>
+				</label>
+				<label class="field">Margin
+					<select id="margin">
+						<option value="0">None</option>
+						<option value="18" selected>Small</option>
+						<option value="42">Large</option>
+					</select>
+				</label>
+			</div>
+			<div class="btn-row">
+				<button class="btn" id="make" disabled><i class="fa-solid fa-file-pdf"></i> Create PDF</button>
+				<button class="btn ghost" id="clear" disabled>Clear</button>
+				<span class="status" id="status"></span>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Images to PDF");
+
+		const items = []; // { file, url }
+		const list = document.getElementById("list");
+		const makeBtn = document.getElementById("make");
+		const clearBtn = document.getElementById("clear");
+		const status = document.getElementById("status");
+		const SIZES = { a4: [595.28, 841.89], letter: [612, 792] };
+
+		Lab.dropzone(document.getElementById("drop"), {
+			accept: "image/*",
+			onFiles: (picked) => {
+				picked.forEach((file) => items.push({ file, url: URL.createObjectURL(file) }));
+				render();
+			}
+		});
+
+		Lab.sortable(list, (from, to) => {
+			Lab.move(items, from, to);
+			render();
+		});
+
+		function render() {
+			list.innerHTML = items.map((it, i) => `
+				<li class="file-item" draggable="true" data-index="${i}">
+					<i class="fa-solid fa-grip-vertical grip" aria-hidden="true"></i>
+					<img class="thumb" src="${it.url}" alt="">
+					<div class="meta">
+						<div class="name">${Lab.escape(it.file.name)}</div>
+						<div class="sub">Page ${i + 1} · ${Lab.formatBytes(it.file.size)}</div>
+					</div>
+					<button class="icon-btn" data-act="up" data-i="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+					<button class="icon-btn" data-act="down" data-i="${i}" ${i === items.length - 1 ? "disabled" : ""} aria-label="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+					<button class="icon-btn" data-act="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+				</li>`).join("");
+			makeBtn.disabled = items.length === 0;
+			clearBtn.disabled = items.length === 0;
+		}
+
+		list.addEventListener("click", (e) => {
+			const b = e.target.closest("button[data-act]");
+			if (!b) return;
+			const i = +b.dataset.i;
+			if (b.dataset.act === "up") Lab.move(items, i, i - 1);
+			if (b.dataset.act === "down") Lab.move(items, i, i + 1);
+			if (b.dataset.act === "del") URL.revokeObjectURL(items.splice(i, 1)[0].url);
+			render();
+		});
+
+		clearBtn.addEventListener("click", () => {
+			items.forEach((it) => URL.revokeObjectURL(it.url));
+			items.length = 0;
+			render();
+		});
+
+		// pdf-lib embeds only JPG/PNG; anything else is re-encoded through a canvas.
+		async function toEmbeddable(file) {
+			const bytes = await file.arrayBuffer();
+			if (file.type === "image/jpeg") return { bytes, kind: "jpg" };
+			if (file.type === "image/png") return { bytes, kind: "png" };
+			const bmp = await createImageBitmap(file);
+			const c = document.createElement("canvas");
+			c.width = bmp.width;
+			c.height = bmp.height;
+			const ctx = c.getContext("2d");
+			ctx.fillStyle = "#fff";
+			ctx.fillRect(0, 0, c.width, c.height);
+			ctx.drawImage(bmp, 0, 0);
+			const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.92));
+			return { bytes: await blob.arrayBuffer(), kind: "jpg" };
+		}
+
+		makeBtn.addEventListener("click", async () => {
+			makeBtn.disabled = true;
+			const sizeKey = document.getElementById("size").value;
+			const margin = +document.getElementById("margin").value;
+			try {
+				const pdf = await PDFLib.PDFDocument.create();
+				for (let i = 0; i < items.length; i++) {
+					Lab.status(status, `Adding image ${i + 1} of ${items.length}…`);
+					const { bytes, kind } = await toEmbeddable(items[i].file);
+					const img = kind === "jpg" ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes);
+					let pw, ph;
+					if (sizeKey === "fit") {
+						pw = img.width + margin * 2;
+						ph = img.height + margin * 2;
+					} else {
+						[pw, ph] = SIZES[sizeKey];
+						if (img.width > img.height) [pw, ph] = [ph, pw]; // landscape images get landscape pages
+					}
+					const page = pdf.addPage([pw, ph]);
+					const scale = Math.min((pw - margin * 2) / img.width, (ph - margin * 2) / img.height, sizeKey === "fit" ? 1 : Infinity);
+					const w = img.width * scale, h = img.height * scale;
+					page.drawImage(img, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+				}
+				const out = await pdf.save();
+				Lab.download(out, "images.pdf", "application/pdf");
+				Lab.status(status, `Done: ${items.length} page(s), ${Lab.formatBytes(out.length)}`, "ok");
+			} catch (e) {
+				Lab.status(status, "Failed: " + e.message, "error");
+			}
+			makeBtn.disabled = false;
+		});
+	</script>
+</body>
+
+</html>

@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+	<title>Reviewer #2 | Lab</title>
+	<meta name="description" content="Reviewer #2: a small arcade game about getting your paper accepted. Dodge rejections, collect citations.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.stage {
+			position: relative;
+			max-width: 520px;
+			margin: 0 auto;
+		}
+
+		canvas {
+			display: block;
+			width: 100%;
+			aspect-ratio: 3 / 4;
+			background: #ffffff;
+			border: 1px solid var(--rule);
+			border-radius: 12px;
+			touch-action: none;
+			cursor: none;
+		}
+
+		.overlay {
+			position: absolute;
+			inset: 0;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			text-align: center;
+			padding: 1.5rem;
+			background: rgba(255, 255, 255, 0.94);
+			border-radius: 12px;
+		}
+
+		.overlay[hidden] {
+			display: none;
+		}
+
+		.overlay h2 {
+			font-family: var(--serif);
+			font-weight: 500;
+			font-size: 2.2rem;
+			color: var(--ink);
+			margin: 0 0 .25rem;
+		}
+
+		.overlay .verdict {
+			font-family: var(--serif);
+			font-style: italic;
+			color: var(--oxblood);
+			font-size: 1.15rem;
+			margin-bottom: 1rem;
+		}
+
+		.legend {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: .45rem .75rem;
+			text-align: left;
+			font-size: .88rem;
+			margin: 1rem 0 1.25rem;
+		}
+
+		.legend .k {
+			font-family: var(--mono);
+			font-size: .72rem;
+			font-weight: 500;
+			padding: .1rem .45rem;
+			border-radius: 4px;
+			border: 1.5px solid;
+			text-align: center;
+			align-self: center;
+		}
+
+		.keys {
+			font-size: .8rem;
+			color: var(--muted);
+			margin-top: .75rem;
+		}
+
+		kbd {
+			font-family: var(--mono);
+			font-size: .75rem;
+			border: 1px solid var(--rule-strong);
+			border-bottom-width: 2px;
+			border-radius: 4px;
+			padding: 0 .35rem;
+			background: #fff;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head" style="text-align:center">
+			<div class="tool-kicker">Game</div>
+			<h1>Reviewer #2</h1>
+			<p style="margin:0 auto">Your manuscript is in review. Collect citations, dodge the rejection stamps, and
+				survive as many review rounds as you can.</p>
+		</div>
+
+		<div class="stage">
+			<canvas id="game" width="480" height="640" aria-label="Reviewer #2 game"></canvas>
+
+			<div class="overlay" id="startScreen">
+				<h2>Reviewer #2</h2>
+				<div class="verdict">“The authors should cite my work.”</div>
+				<div class="legend">
+					<span class="k" style="color:#b8901f;border-color:#b8901f">❝ cite</span><span>Citation: +1 to your
+						count</span>
+					<span class="k" style="color:#8a2b22;border-color:#8a2b22">REJECT</span><span>Costs you a review
+						round (3 total)</span>
+					<span class="k" style="color:#c46a1c;border-color:#c46a1c">MAJOR REV</span><span>Slows you down for
+						a few seconds</span>
+					<span class="k" style="color:#2f6b5f;border-color:#2f6b5f">ACCEPT</span><span>Rare: restores a
+						round, or +10 citations</span>
+				</div>
+				<button class="btn" id="startBtn"><i class="fa-solid fa-paper-plane"></i> Submit manuscript</button>
+				<div class="keys"><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> to move · drag on touch
+					screens · <kbd>P</kbd> to pause</div>
+			</div>
+
+			<div class="overlay" id="overScreen" hidden>
+				<h2 id="overTitle">Rejected</h2>
+				<div class="verdict" id="overVerdict"></div>
+				<div class="stats" style="width:100%;max-width:340px;margin-bottom:1.25rem">
+					<div class="stat"><div class="stat-value" id="finalScore">0</div><div class="stat-label">Citations</div></div>
+					<div class="stat"><div class="stat-value" id="finalH">0</div><div class="stat-label">h-index</div></div>
+					<div class="stat"><div class="stat-value" id="bestScore">0</div><div class="stat-label">Best</div></div>
+				</div>
+				<button class="btn" id="againBtn"><i class="fa-solid fa-rotate-right"></i> Resubmit</button>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Reviewer #2");
+
+		const canvas = document.getElementById("game");
+		const ctx = canvas.getContext("2d");
+		const W = 480, H = 640;
+		const COLORS = { ink: "#1d1f23", muted: "#6c6f75", rule: "#e3ddd0", gold: "#b8901f", red: "#8a2b22", orange: "#c46a1c", green: "#2f6b5f", paper: "#ffffff" };
+		const KINDS = {
+			cite: { label: "❝", w: 34, h: 34, color: COLORS.gold },
+			reject: { label: "REJECT", w: 84, h: 30, color: COLORS.red },
+			major: { label: "MAJOR REV", w: 98, h: 28, color: COLORS.orange },
+			accept: { label: "ACCEPT", w: 84, h: 30, color: COLORS.green }
+		};
+		const VERDICTS = [
+			"“The contribution is unclear.”",
+			"“Have the authors considered a larger dataset?”",
+			"“This is not novel. See my 2009 paper.”",
+			"“The writing needs substantial work.”",
+			"“Please add more baselines. All of them.”",
+			"“Out of scope for this venue.”"
+		];
+
+		// Retina-sharp canvas
+		const dpr = Math.min(window.devicePixelRatio || 1, 2);
+		canvas.width = W * dpr;
+		canvas.height = H * dpr;
+		ctx.scale(dpr, dpr);
+
+		let state, keys = {}, last = 0, running = false, paused = false, rafId = 0;
+		let best = 0;
+		try { best = +localStorage.getItem("lab-reviewer2-best") || 0; } catch (e) { }
+
+		function reset() {
+			state = {
+				x: W / 2, w: 64, h: 82, speed: 360,
+				lives: 3, score: 0, round: 1, t: 0,
+				items: [], particles: [], popups: [],
+				spawnIn: 0.6, slowUntil: 0, flashUntil: 0, shake: 0,
+				citesPerRound: [0]
+			};
+		}
+
+		function difficulty() {
+			return 1 + state.t / 45; // gets ~2x harder every 45s
+		}
+
+		function spawn() {
+			const d = difficulty();
+			const r = Math.random();
+			let kind = "cite";
+			if (r < 0.36 + Math.min(0.2, state.t / 300)) kind = "reject";
+			else if (r < 0.48 + Math.min(0.2, state.t / 300)) kind = "major";
+			else if (r > 0.975) kind = "accept";
+			const k = KINDS[kind];
+			state.items.push({
+				kind, w: k.w, h: k.h,
+				x: k.w / 2 + Math.random() * (W - k.w),
+				y: -k.h,
+				vy: (140 + Math.random() * 80) * d * (kind === "cite" ? 0.85 : 1),
+				rot: (Math.random() - 0.5) * (kind === "cite" ? 0 : 0.4)
+			});
+			state.spawnIn = Math.max(0.22, (0.75 - Math.random() * 0.3) / d);
+		}
+
+		function burst(x, y, color, n = 12) {
+			for (let i = 0; i < n; i++) {
+				const a = Math.random() * Math.PI * 2, s = 60 + Math.random() * 160;
+				state.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 60, life: 0.6, color });
+			}
+		}
+
+		function popup(x, y, text, color) {
+			state.popups.push({ x, y, text, color, life: 0.9 });
+		}
+
+		function update(dt) {
+			const s = state;
+			s.t += dt;
+			const slow = s.t < s.slowUntil ? 0.45 : 1;
+			const dir = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
+			if (dir) s.x += dir * s.speed * slow * dt;
+			if (s.pointerX != null) s.x += (s.pointerX - s.x) * Math.min(1, dt * 14 * slow);
+			s.x = Math.max(s.w / 2, Math.min(W - s.w / 2, s.x));
+
+			// Every 25 citations = a new review round
+			const round = 1 + Math.floor(s.score / 25);
+			if (round > s.round) {
+				s.round = round;
+				s.citesPerRound.push(0);
+				popup(W / 2, H / 2 - 40, `Round ${round} of review`, COLORS.ink);
+			}
+
+			s.spawnIn -= dt;
+			if (s.spawnIn <= 0) spawn();
+
+			const py = H - 30 - s.h;
+			for (const it of s.items) {
+				it.y += it.vy * dt;
+				const hit = Math.abs(it.x - s.x) < (it.w + s.w) / 2 - 6 && it.y + it.h / 2 > py + 6 && it.y - it.h / 2 < py + s.h;
+				if (!hit) continue;
+				it.dead = true;
+				if (it.kind === "cite") {
+					s.score++;
+					s.citesPerRound[s.citesPerRound.length - 1]++;
+					burst(it.x, it.y, COLORS.gold, 8);
+					popup(it.x, it.y, "+1", COLORS.gold);
+				} else if (it.kind === "reject") {
+					s.lives--;
+					s.flashUntil = s.t + 0.25;
+					s.shake = 10;
+					burst(it.x, it.y, COLORS.red, 18);
+					popup(it.x, it.y, "Rejected!", COLORS.red);
+					if (s.lives <= 0) return gameOver();
+				} else if (it.kind === "major") {
+					s.slowUntil = s.t + 3;
+					burst(it.x, it.y, COLORS.orange, 12);
+					popup(it.x, it.y, "Revise & resubmit", COLORS.orange);
+				} else if (it.kind === "accept") {
+					if (s.lives < 3) { s.lives++; popup(it.x, it.y, "Accepted! +1 round", COLORS.green); }
+					else { s.score += 10; s.citesPerRound[s.citesPerRound.length - 1] += 10; popup(it.x, it.y, "Accepted! +10", COLORS.green); }
+					burst(it.x, it.y, COLORS.green, 20);
+				}
+			}
+			s.items = s.items.filter((it) => !it.dead && it.y - it.h < H + 20);
+
+			for (const p of s.particles) {
+				p.x += p.vx * dt;
+				p.y += p.vy * dt;
+				p.vy += 400 * dt;
+				p.life -= dt;
+			}
+			s.particles = s.particles.filter((p) => p.life > 0);
+			for (const p of s.popups) { p.y -= 40 * dt; p.life -= dt; }
+			s.popups = s.popups.filter((p) => p.life > 0);
+			s.shake *= 0.85;
+		}
+
+		function roundRect(x, y, w, h, r) {
+			ctx.beginPath();
+			ctx.moveTo(x + r, y);
+			ctx.arcTo(x + w, y, x + w, y + h, r);
+			ctx.arcTo(x + w, y + h, x, y + h, r);
+			ctx.arcTo(x, y + h, x, y, r);
+			ctx.arcTo(x, y, x + w, y, r);
+			ctx.closePath();
+		}
+
+		function drawManuscript(cx, y, w, h, slowed) {
+			const x = cx - w / 2;
+			ctx.save();
+			ctx.shadowColor = "rgba(30,58,95,.25)";
+			ctx.shadowBlur = 14;
+			ctx.shadowOffsetY = 6;
+			ctx.fillStyle = "#fff";
+			ctx.beginPath();
+			ctx.moveTo(x, y);
+			ctx.lineTo(x + w - 14, y);
+			ctx.lineTo(x + w, y + 14);
+			ctx.lineTo(x + w, y + h);
+			ctx.lineTo(x, y + h);
+			ctx.closePath();
+			ctx.fill();
+			ctx.restore();
+			ctx.strokeStyle = slowed ? COLORS.orange : COLORS.ink;
+			ctx.lineWidth = 1.5;
+			ctx.stroke();
+			// folded corner
+			ctx.beginPath();
+			ctx.moveTo(x + w - 14, y);
+			ctx.lineTo(x + w - 14, y + 14);
+			ctx.lineTo(x + w, y + 14);
+			ctx.stroke();
+			// title + text lines
+			ctx.fillStyle = COLORS.ink;
+			ctx.fillRect(x + 10, y + 12, w - 32, 4);
+			ctx.fillStyle = COLORS.muted;
+			ctx.fillRect(x + 16, y + 21, w - 36, 2);
+			ctx.fillStyle = COLORS.rule;
+			for (let i = 0; i < 6; i++) ctx.fillRect(x + 10, y + 32 + i * 7, i % 3 === 2 ? w - 34 : w - 20, 2);
+			// two-column hint
+			ctx.fillStyle = "#cfc6b3";
+			ctx.fillRect(x + 10, y + h - 12, (w - 24) / 2, 2);
+			ctx.fillRect(x + w / 2 + 2, y + h - 12, (w - 24) / 2, 2);
+		}
+
+		function drawItem(it) {
+			const k = KINDS[it.kind];
+			ctx.save();
+			ctx.translate(it.x, it.y);
+			ctx.rotate(it.rot);
+			if (it.kind === "cite") {
+				ctx.fillStyle = "#fff8e1";
+				ctx.strokeStyle = k.color;
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				ctx.arc(0, 0, k.w / 2, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.stroke();
+				ctx.fillStyle = k.color;
+				ctx.font = "700 22px system-ui, sans-serif";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.fillText("❝", 0, 3);
+			} else {
+				ctx.strokeStyle = k.color;
+				ctx.fillStyle = "rgba(255,253,248,.92)";
+				ctx.lineWidth = 2.5;
+				roundRect(-it.w / 2, -it.h / 2, it.w, it.h, 4);
+				ctx.fill();
+				ctx.stroke();
+				ctx.lineWidth = 1;
+				roundRect(-it.w / 2 + 3, -it.h / 2 + 3, it.w - 6, it.h - 6, 2);
+				ctx.stroke();
+				ctx.fillStyle = k.color;
+				ctx.font = "600 13px 'Lucida Console', monospace";
+				ctx.textAlign = "center";
+				ctx.textBaseline = "middle";
+				ctx.fillText(k.label, 0, 1);
+			}
+			ctx.restore();
+		}
+
+		function draw() {
+			const s = state;
+			ctx.save();
+			if (s.shake > 0.5) ctx.translate((Math.random() - 0.5) * s.shake, (Math.random() - 0.5) * s.shake);
+			ctx.fillStyle = COLORS.paper;
+			ctx.fillRect(-20, -20, W + 40, H + 40);
+			// ruled paper
+			ctx.strokeStyle = "#f0ebe0";
+			ctx.lineWidth = 1;
+			for (let y = 70; y < H; y += 28) {
+				ctx.beginPath();
+				ctx.moveTo(0, y);
+				ctx.lineTo(W, y);
+				ctx.stroke();
+			}
+			ctx.strokeStyle = "rgba(138,43,34,.15)";
+			ctx.beginPath();
+			ctx.moveTo(44, 0);
+			ctx.lineTo(44, H);
+			ctx.stroke();
+
+			s.items.forEach(drawItem);
+			drawManuscript(s.x, H - 30 - s.h, s.w, s.h, s.t < s.slowUntil);
+
+			for (const p of s.particles) {
+				ctx.globalAlpha = Math.max(0, p.life / 0.6);
+				ctx.fillStyle = p.color;
+				ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+			}
+			ctx.globalAlpha = 1;
+			ctx.textAlign = "center";
+			for (const p of s.popups) {
+				ctx.globalAlpha = Math.max(0, p.life / 0.9);
+				ctx.fillStyle = p.color;
+				ctx.font = "italic 500 18px system-ui, sans-serif";
+				ctx.fillText(p.text, p.x, p.y);
+			}
+			ctx.globalAlpha = 1;
+
+			// HUD
+			ctx.fillStyle = "rgba(255,255,255,.9)";
+			ctx.fillRect(0, 0, W, 50);
+			ctx.strokeStyle = COLORS.rule;
+			ctx.beginPath();
+			ctx.moveTo(0, 50.5);
+			ctx.lineTo(W, 50.5);
+			ctx.stroke();
+			ctx.textBaseline = "middle";
+			ctx.textAlign = "left";
+			ctx.fillStyle = COLORS.ink;
+			ctx.font = "500 22px system-ui, sans-serif";
+			ctx.fillText(`❝ ${s.score}`, 16, 26);
+			ctx.textAlign = "center";
+			ctx.font = "600 11px system-ui, sans-serif";
+			ctx.fillStyle = COLORS.muted;
+			ctx.fillText(`ROUND ${s.round}`, W / 2, 26);
+			ctx.textAlign = "right";
+			for (let i = 0; i < 3; i++) {
+				ctx.fillStyle = i < s.lives ? COLORS.ink : COLORS.rule;
+				const x = W - 20 - i * 20;
+				ctx.fillRect(x - 6, 17, 12, 16);
+				ctx.fillStyle = i < s.lives ? COLORS.paper : "#fff";
+				ctx.fillRect(x - 3, 21, 6, 1.5);
+				ctx.fillRect(x - 3, 25, 6, 1.5);
+			}
+			if (paused) {
+				ctx.fillStyle = "rgba(255,255,255,.8)";
+				ctx.fillRect(0, 0, W, H);
+				ctx.fillStyle = COLORS.ink;
+				ctx.textAlign = "center";
+				ctx.font = "500 30px system-ui, sans-serif";
+				ctx.fillText("Under review…", W / 2, H / 2);
+				ctx.font = "13px system-ui, sans-serif";
+				ctx.fillStyle = COLORS.muted;
+				ctx.fillText("Press P to continue", W / 2, H / 2 + 30);
+			}
+			ctx.restore();
+			if (s.t < s.flashUntil) {
+				ctx.fillStyle = "rgba(138,43,34,.12)";
+				ctx.fillRect(0, 0, W, H);
+			}
+		}
+
+		function loop(ts) {
+			const dt = Math.min(0.033, (ts - last) / 1000 || 0);
+			last = ts;
+			if (!paused) update(dt);
+			if (!running) return;
+			draw();
+			rafId = requestAnimationFrame(loop);
+		}
+
+		function start() {
+			reset();
+			document.getElementById("startScreen").hidden = true;
+			document.getElementById("overScreen").hidden = true;
+			running = true;
+			paused = false;
+			last = performance.now();
+			cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(loop);
+			canvas.focus();
+		}
+
+		function hIndex(arr) {
+			const sorted = [...arr].sort((a, b) => b - a);
+			let h = 0;
+			sorted.forEach((c, i) => { if (c >= i + 1) h = i + 1; });
+			return h;
+		}
+
+		function gameOver() {
+			running = false;
+			draw();
+			const s = state;
+			if (s.score > best) {
+				best = s.score;
+				try { localStorage.setItem("lab-reviewer2-best", best); } catch (e) { }
+			}
+			document.getElementById("overTitle").textContent = s.score >= 100 ? "Accepted with minor revisions" : s.score >= 40 ? "Borderline reject" : "Desk rejected";
+			document.getElementById("overVerdict").textContent = VERDICTS[Math.floor(Math.random() * VERDICTS.length)] + " (Reviewer #2)";
+			document.getElementById("finalScore").textContent = s.score;
+			document.getElementById("finalH").textContent = hIndex(s.citesPerRound);
+			document.getElementById("bestScore").textContent = best;
+			document.getElementById("overScreen").hidden = false;
+		}
+
+		// Input
+		window.addEventListener("keydown", (e) => {
+			const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+			if (["ArrowLeft", "ArrowRight", " "].includes(k) && running) e.preventDefault();
+			keys[k] = true;
+			if (k === "p" && running) paused = !paused;
+			if ((k === "Enter" || k === " ") && !running) start();
+		});
+		window.addEventListener("keyup", (e) => {
+			keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false;
+		});
+		function pointer(e) {
+			if (!running) return;
+			const r = canvas.getBoundingClientRect();
+			state.pointerX = ((e.clientX - r.left) / r.width) * W;
+		}
+		canvas.addEventListener("pointerdown", (e) => { canvas.setPointerCapture(e.pointerId); pointer(e); });
+		canvas.addEventListener("pointermove", (e) => { if (e.pointerType === "mouse" || e.buttons) pointer(e); });
+		canvas.addEventListener("pointerup", (e) => { if (e.pointerType !== "mouse" && state) state.pointerX = null; });
+		canvas.addEventListener("pointerleave", () => { if (state) state.pointerX = null; });
+		document.addEventListener("visibilitychange", () => { if (document.hidden && running) paused = true; });
+
+		document.getElementById("startBtn").addEventListener("click", start);
+		document.getElementById("againBtn").addEventListener("click", start);
+
+		reset();
+		draw();
+	</script>
+</body>
+
+</html>

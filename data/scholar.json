@@ -1,0 +1,249 @@
+{
+ "fetched": "2026-11-13T09:07:16+00:00",
+ "profile": "https://scholar.google.com/citations?user=zjaqexkAAAAJ&hl=en",
+ "metrics": {
+  "citations": {
+   "all": 202,
+   "recent": 202
+  },
+  "h_index": {
+   "all": 8,
+   "recent": 8
+  },
+  "i10_index": {
+   "all": 7,
+   "recent": 7
+  }
+ },
+ "citations_per_year": [
+  {
+   "year": 2022,
+   "citations": 4
+  },
+  {
+   "year": 2023,
+   "citations": 22
+  },
+  {
+   "year": 2024,
+   "citations": 28
+  },
+  {
+   "year": 2025,
+   "citations": 72
+  },
+  {
+   "year": 2026,
+   "citations": 76
+  }
+ ],
+ "publications": [
+  {
+   "title": "Exploring the efficacy of large language models in summarizing mental health counseling sessions: benchmark study",
+   "authors": "PK Adhikary, A Srivastava, S Kumar, SM Singh, P Manuja, JK Gopinath, ...",
+   "venue": "JMIR Mental Health 11, e57306",
+   "year": 2024,
+   "citations": 71,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:ufrVoPGSRksC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=1878758078594980386"
+  },
+  {
+   "title": "Image caption generation for low-resource assamese language",
+   "authors": "P Nath, PK Adhikary, P Dadure, P Pakray, R Manna, S Bandyopadhyay",
+   "venue": "Proceedings of the 34th Conference on computational linguistics and speech …",
+   "year": 2022,
+   "citations": 24,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:zYLM7Y9cAGgC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=6268266754580427858"
+  },
+  {
+   "title": "Leveraging GPT-2 for Automated Classification of Online Sexist Content.",
+   "authors": "A Vetagiri, PK Adhikary, P Pakray, A Das",
+   "venue": "CLEF (Working Notes), 1107-1122",
+   "year": 2023,
+   "citations": 18,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:W7OEmFMy1HYC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=7011648706408445723"
+  },
+  {
+   "title": "Dzongkha handwritten digit recognition using machine learning techniques",
+   "authors": "PK Adhikary, P Dadure, P Saha, P Pakray",
+   "venue": "Procedia Computer Science 218, 2350-2358",
+   "year": 2023,
+   "citations": 15,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:Tyk-4Ss8FVUC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=12421617783932123600"
+  },
+  {
+   "title": "Menstrual health education using a specialized large language model in India: development and evaluation study of MenstLLaMA",
+   "authors": "PK Adhikary, I Motiyani, G Oke, M Joshi, K Pathak, SM Singh, ...",
+   "venue": "Journal of Medical Internet Research 27, e71977",
+   "year": 2025,
+   "citations": 14,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:UebtZRa9Y70C",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=4281751877302482490"
+  },
+  {
+   "title": "CNLP-NITS at SemEval-2023 Task 10: Online sexism prediction, PREDHATE!",
+   "authors": "A Vetagiri, P Adhikary, P Pakray, A Das",
+   "venue": "Proceedings of the 17th International Workshop on Semantic Evaluation …",
+   "year": 2023,
+   "citations": 11,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:Y0pCki6q_DkC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=2073859591575602402"
+  },
+  {
+   "title": "Neural machine translation for Tamil–Telugu pair",
+   "authors": "SR Laskar, B Paul, PK Adhikary, P Pakray, S Bandyopadhyay",
+   "venue": "Proceedings of the sixth conference on machine translation, 284-287",
+   "year": 2021,
+   "citations": 10,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:d1gkVwhDpl0C",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=14177680506804110130"
+  },
+  {
+   "title": "A comprehensive review of datasets for Clinical Mental Health AI systems",
+   "authors": "A Mandal, PK Adhikary, H Arnaout, I Gurevych, T Chakraborty",
+   "venue": "arXiv preprint arXiv:2508.09809",
+   "year": 2025,
+   "citations": 8,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:hqOjcs7Dif8C",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=3627662611785304640"
+  },
+  {
+   "title": "Ontology-based healthcare hierarchy towards chatbot",
+   "authors": "PK Adhikary, R Manna, SR Laskar, P Pakray",
+   "venue": "International Conference on Computational Intelligence in Communications and …",
+   "year": 2022,
+   "citations": 8,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:2osOgNQ5qMEC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=7443510896128675366"
+  },
+  {
+   "title": "Travid: An end-to-end video translation framework",
+   "authors": "PK Adhikary, B Sugandhi, S Ghimire, S Pal, P Pakray",
+   "venue": "Proceedings of the 13th international joint conference on natural language …",
+   "year": 2023,
+   "citations": 7,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:eQOLeE2rZwMC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=10916434061700704926"
+  },
+  {
+   "title": "Exploring the efficacy of large language models in summarizing mental health counseling sessions: benchmark study. JMIR Mental Health, 11: e57306. context learning",
+   "authors": "PK Adhikary, A Srivastava, S Kumar, SM Singh, P Manuja, JK Gopinath, ...",
+   "venue": "Proceedings of the Tenth Workshop on Computational Linguistics and Clinical …",
+   "year": 2024,
+   "citations": 5,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:4TOpqqG69KYC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=13297843943700747487"
+  },
+  {
+   "title": "Towards richer AI-assisted psychotherapy note-making and performance benchmarking",
+   "authors": "PK Adhikary, S Singh, S Singh, P Sharma, P Soni, R Choudhary, ...",
+   "venue": "medRxiv, 2025.06. 25.25330252",
+   "year": 2025,
+   "citations": 4,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:Se3iqnhoufwC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=4054825829926991395"
+  },
+  {
+   "title": "TextSumEval-2022: overview of the textual summary evaluation task",
+   "authors": "Tamwo, P Dadure, PK Adhikary, P Pakray, B Favre, S Bandyopadhyay, ...",
+   "venue": "International conference on intelligent computing systems and applications …",
+   "year": 2023,
+   "citations": 3,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:0EnyYjriUFMC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=17680592135599322896"
+  },
+  {
+   "title": "An empirical analysis on abstractive text summarization",
+   "authors": "Tawmo, PK Adhikary, P Dadure, P Pakray",
+   "venue": "International Conference on Computational Intelligence in Communications and …",
+   "year": 2022,
+   "citations": 2,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:9yKSN-GCB0IC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=14826057784772173680"
+  },
+  {
+   "title": "coTherapist: A Behavior-Aligned Small Language Model Framework to Support Mental Healthcare Experts",
+   "authors": "PK Adhikary, R Rawat, T Chakraborty",
+   "venue": "Proceedings of the ACM Web Conference 2026, 9529-9540",
+   "year": 2026,
+   "citations": 1,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:kNdYIx-mwKoC",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=17711092122622874070"
+  },
+  {
+   "title": "Investigation of negation effect for English–Assamese machine translation",
+   "authors": "SR Laskar, A Gogoi, S Dutta, PK Adhikary, P Nath, P Pakray, ...",
+   "venue": "Sādhanā 47 (4), 238",
+   "year": 2022,
+   "citations": 1,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:IjCSPb-OGe4C",
+   "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=17590567816370849450"
+  },
+  {
+   "title": "Discourse-Guided Summarisation of Psychotherapy Dialogues via Graph-Fused Language Models",
+   "authors": "PK Adhikary, A Mukherjee, KS Deb, S Singh, SM Singh, T Chakraborty",
+   "venue": "IEEE Journal of Biomedical and Health Informatics",
+   "year": 2026,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:_kc_bZDykSQC",
+   "citations_url": null
+  },
+  {
+   "title": "InsightFlow: LLM-Driven Synthesis of Patient Narratives for Mental Health into Causal Models",
+   "authors": "S Gupta, PK Adhikary, B Dave, SM Singh, A Deroy, T Chakraborty",
+   "venue": "arXiv preprint arXiv:2604.12721",
+   "year": 2026,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:Zph67rFs4hoC",
+   "citations_url": null
+  },
+  {
+   "title": "Through BrokenEyes: How Eye Disorders Impact Face Detection?",
+   "authors": "PK Adhikary",
+   "venue": "arXiv preprint arXiv:2602.23212",
+   "year": 2026,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:KlAtU1dfN6UC",
+   "citations_url": null
+  },
+  {
+   "title": "Artificial intelligence for psychiatric training: summarisation, simulated patients, and AI examiners",
+   "authors": "SB Math, T Chakroborty, MIS Sethi, G Jadav, PK Adhikary",
+   "venue": "INDIAN JOURNAL OF PSYCHIATRY 68 (SUPPL 1), S167-S168",
+   "year": 2026,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:YOwf2qJgpHMC",
+   "citations_url": null
+  },
+  {
+   "title": "AI for psychiatrists: Clinical practice, academics & research-An IIT-Delhi and NIMHANS, Bengaluru collaborative workshop",
+   "authors": "MI Singh, T Chakroborty, A Vashisht, PK Adhikary, SB Math",
+   "venue": "INDIAN JOURNAL OF PSYCHIATRY 68 (SUPPL 1), S179-S180",
+   "year": 2026,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:ULOm3_A8WrAC",
+   "citations_url": null
+  },
+  {
+   "title": "An Approach Towards Abstractive Summary Generation and Knowledge Graph Representation",
+   "authors": "PK Adhikary, P Dadure, R Manna, P Pakray",
+   "venue": "International Conference on Emerging Electronics and Automation, 223-231",
+   "year": 2023,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:roLk4NBRz8UC",
+   "citations_url": null
+  },
+  {
+   "title": "Dzongkha Handwritten Digit Dataset",
+   "authors": "DPP Tawmo, Prottay Kumar Adhikary, Pankaj Dadur",
+   "venue": "10.5281/zenodo.6271560",
+   "year": 2022,
+   "citations": 0,
+   "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:UeHWp8X0CEIC",
+   "citations_url": null
+  }
+ ]
+}

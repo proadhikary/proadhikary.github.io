@@ -1,0 +1,46 @@
+name: Update Google Scholar data
+
+# Runs every 6 hours, but scripts/fetch_scholar.py only fetches when the saved
+# data is older than 7 days. If Scholar blocks a run, the next run retries, so a
+# failed refresh simply waits in the queue until it succeeds.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Fetch now even if the data is fresh"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scholar
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch Scholar profile
+        run: python3 scripts/fetch_scholar.py ${{ inputs.force && '--force' || '' }}
+
+      - name: Commit if changed
+        run: |
+          if git diff --quiet -- data/scholar.json && ! git ls-files --others --exclude-standard data | grep -q .; then
+            echo "No changes."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/scholar.json
+          git commit -m "Update Google Scholar data"
+          git push

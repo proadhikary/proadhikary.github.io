@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Compress &amp; Resize Image | Lab</title>
+	<meta name="description" content="Compress, resize and convert images to JPG, PNG or WebP in your browser. Nothing is uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.saving {
+			font-weight: 600;
+			color: var(--ok);
+		}
+
+		.saving.worse {
+			color: var(--oxblood);
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Image</div>
+			<h1>Compress &amp; Resize Image</h1>
+			<p>Get figures and photos under a portal’s upload limit, or shrink screenshots for slides. Works on
+				several images at once.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="panel">
+			<div class="grid-2">
+				<div>
+					<label class="field">Format
+						<select id="format">
+							<option value="image/jpeg">JPG</option>
+							<option value="image/webp">WebP</option>
+							<option value="image/png">PNG (lossless)</option>
+						</select>
+					</label>
+					<label class="field" id="qualityField">Quality: <span id="qualityVal">80</span>%
+						<input type="range" id="quality" min="10" max="100" value="80">
+					</label>
+				</div>
+				<div>
+					<label class="field">Max width (px)
+						<input type="number" id="maxW" placeholder="Original" min="16">
+					</label>
+					<label class="field">Max height (px)
+						<input type="number" id="maxH" placeholder="Original" min="16">
+					</label>
+					<span class="hint">Aspect ratio is always kept. Leave blank to keep the original size.</span>
+				</div>
+			</div>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-image"></i></div>
+			<strong>Drop images here</strong>
+			<span>JPG, PNG, WebP, GIF, BMP. Click to choose</span>
+		</div>
+
+		<ul class="file-list" id="list"></ul>
+
+		<div class="btn-row">
+			<button class="btn" id="all" disabled><i class="fa-solid fa-download"></i> Download all</button>
+			<button class="btn ghost" id="clear" disabled>Clear</button>
+			<span class="status" id="status"></span>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Compress & Resize Image");
+
+		const items = []; // { file, out: Blob, w, h, url }
+		const $ = (id) => document.getElementById(id);
+		const list = $("list");
+		const EXT = { "image/jpeg": "jpg", "image/webp": "webp", "image/png": "png" };
+
+		Lab.dropzone($("drop"), {
+			accept: "image/*",
+			onFiles: (picked) => {
+				picked.forEach((file) => items.push({ file }));
+				processAll();
+			}
+		});
+
+		$("quality").addEventListener("input", () => ($("qualityVal").textContent = $("quality").value));
+		["format", "quality", "maxW", "maxH"].forEach((id) => $(id).addEventListener("change", processAll));
+		$("format").addEventListener("change", () => {
+			$("qualityField").style.display = $("format").value === "image/png" ? "none" : "";
+		});
+
+		async function processOne(it) {
+			const type = $("format").value;
+			const q = +$("quality").value / 100;
+			const maxW = +$("maxW").value || Infinity;
+			const maxH = +$("maxH").value || Infinity;
+			const bmp = await createImageBitmap(it.file);
+			const scale = Math.min(1, maxW / bmp.width, maxH / bmp.height);
+			const w = Math.max(1, Math.round(bmp.width * scale));
+			const h = Math.max(1, Math.round(bmp.height * scale));
+			const c = document.createElement("canvas");
+			c.width = w;
+			c.height = h;
+			const ctx = c.getContext("2d");
+			if (type === "image/jpeg") {
+				ctx.fillStyle = "#fff"; // JPG has no transparency
+				ctx.fillRect(0, 0, w, h);
+			}
+			ctx.imageSmoothingQuality = "high";
+			ctx.drawImage(bmp, 0, 0, w, h);
+			const blob = await new Promise((r) => c.toBlob(r, type, q));
+			if (it.url) URL.revokeObjectURL(it.url);
+			Object.assign(it, { out: blob, w, h, ow: bmp.width, oh: bmp.height, url: URL.createObjectURL(blob), error: null });
+		}
+
+		let generation = 0;
+		async function processAll() {
+			const gen = ++generation; // settings can change mid-run; only the latest run renders
+			Lab.status($("status"), items.length ? "Processing…" : "");
+			for (const it of items) {
+				try {
+					await processOne(it);
+				} catch (e) {
+					it.error = "Can't read this image";
+				}
+				if (gen !== generation) return;
+			}
+			render();
+		}
+
+		function outName(it) {
+			return it.file.name.replace(/\.[^.]+$/, "") + "_compressed." + EXT[$("format").value];
+		}
+
+		function render() {
+			list.innerHTML = items.map((it, i) => {
+				if (it.error) return `<li class="file-item"><span class="thumb"><i class="fa-solid fa-triangle-exclamation"></i></span>
+					<div class="meta"><div class="name">${Lab.escape(it.file.name)}</div><div class="sub">${it.error}</div></div>
+					<button class="icon-btn" data-act="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button></li>`;
+				const pct = Math.round((1 - it.out.size / it.file.size) * 100);
+				return `<li class="file-item">
+					<img class="thumb" src="${it.url}" alt="">
+					<div class="meta">
+						<div class="name">${Lab.escape(it.file.name)}</div>
+						<div class="sub">${it.ow}×${it.oh} → ${it.w}×${it.h} · ${Lab.formatBytes(it.file.size)} → ${Lab.formatBytes(it.out.size)}
+							<span class="saving ${pct < 0 ? "worse" : ""}">${pct >= 0 ? "−" + pct : "+" + -pct}%</span></div>
+					</div>
+					<button class="icon-btn" data-act="get" data-i="${i}" aria-label="Download"><i class="fa-solid fa-download"></i></button>
+					<button class="icon-btn" data-act="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+				</li>`;
+			}).join("");
+			const ok = items.filter((it) => !it.error);
+			$("all").disabled = ok.length === 0;
+			$("clear").disabled = items.length === 0;
+			const before = ok.reduce((s, it) => s + it.file.size, 0);
+			const after = ok.reduce((s, it) => s + it.out.size, 0);
+			Lab.status($("status"), ok.length ? `Total ${Lab.formatBytes(before)} → ${Lab.formatBytes(after)}` : "");
+		}
+
+		list.addEventListener("click", (e) => {
+			const b = e.target.closest("button[data-act]");
+			if (!b) return;
+			const it = items[+b.dataset.i];
+			if (b.dataset.act === "get") Lab.download(it.out, outName(it));
+			if (b.dataset.act === "del") {
+				if (it.url) URL.revokeObjectURL(it.url);
+				items.splice(+b.dataset.i, 1);
+				render();
+			}
+		});
+
+		$("all").addEventListener("click", async () => {
+			for (const it of items.filter((it) => !it.error)) {
+				Lab.download(it.out, outName(it));
+				await new Promise((r) => setTimeout(r, 250));
+			}
+		});
+
+		$("clear").addEventListener("click", () => {
+			items.forEach((it) => it.url && URL.revokeObjectURL(it.url));
+			items.length = 0;
+			render();
+		});
+	</script>
+</body>
+
+</html>

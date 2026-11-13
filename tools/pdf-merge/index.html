@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Merge PDF | Lab</title>
+	<meta name="description" content="Merge PDF files in your browser. Free and private. Files are never uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">PDF</div>
+			<h1>Merge PDF</h1>
+			<p>Combine several PDFs into a single document. Drag to reorder before merging.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-file-pdf"></i></div>
+			<strong>Drop PDFs here</strong>
+			<span>or click to choose files</span>
+		</div>
+
+		<ul class="file-list" id="list"></ul>
+
+		<div class="panel">
+			<label class="field">Output file name
+				<input type="text" id="outName" value="merged.pdf">
+			</label>
+			<div class="btn-row">
+				<button class="btn" id="merge" disabled><i class="fa-solid fa-object-group"></i> Merge PDFs</button>
+				<button class="btn ghost" id="clear" disabled>Clear</button>
+				<span class="status" id="status"></span>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Merge PDF");
+
+		const files = []; // { file, pages }
+		const list = document.getElementById("list");
+		const mergeBtn = document.getElementById("merge");
+		const clearBtn = document.getElementById("clear");
+		const status = document.getElementById("status");
+
+		Lab.dropzone(document.getElementById("drop"), {
+			accept: "application/pdf,.pdf",
+			onFiles: async (picked) => {
+				for (const file of picked) {
+					const entry = { file, pages: null, error: false };
+					files.push(entry);
+					try {
+						const doc = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+						entry.pages = doc.getPageCount();
+					} catch (e) {
+						entry.error = true;
+					}
+				}
+				render();
+			}
+		});
+
+		Lab.sortable(list, (from, to) => {
+			Lab.move(files, from, to);
+			render();
+		});
+
+		function render() {
+			list.innerHTML = files.map((f, i) => `
+				<li class="file-item" draggable="true" data-index="${i}">
+					<i class="fa-solid fa-grip-vertical grip" aria-hidden="true"></i>
+					<span class="thumb"><i class="fa-regular fa-file-pdf"></i></span>
+					<div class="meta">
+						<div class="name">${Lab.escape(f.file.name)}</div>
+						<div class="sub">${f.error ? "Could not read this PDF" : (f.pages ?? "…") + " pages"} · ${Lab.formatBytes(f.file.size)}</div>
+					</div>
+					<button class="icon-btn" data-act="up" data-i="${i}" ${i === 0 ? "disabled" : ""} aria-label="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+					<button class="icon-btn" data-act="down" data-i="${i}" ${i === files.length - 1 ? "disabled" : ""} aria-label="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+					<button class="icon-btn" data-act="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+				</li>`).join("");
+			const usable = files.filter((f) => !f.error).length;
+			mergeBtn.disabled = usable < 2;
+			clearBtn.disabled = files.length === 0;
+			const total = files.reduce((s, f) => s + (f.pages || 0), 0);
+			Lab.status(status, files.length ? `${usable} file(s), ${total} pages total` : "");
+		}
+
+		list.addEventListener("click", (e) => {
+			const b = e.target.closest("button[data-act]");
+			if (!b) return;
+			const i = +b.dataset.i;
+			if (b.dataset.act === "up") Lab.move(files, i, i - 1);
+			if (b.dataset.act === "down") Lab.move(files, i, i + 1);
+			if (b.dataset.act === "del") files.splice(i, 1);
+			render();
+		});
+
+		clearBtn.addEventListener("click", () => {
+			files.length = 0;
+			render();
+		});
+
+		mergeBtn.addEventListener("click", async () => {
+			mergeBtn.disabled = true;
+			Lab.status(status, "Merging…");
+			try {
+				const out = await PDFLib.PDFDocument.create();
+				for (const f of files.filter((f) => !f.error)) {
+					const src = await PDFLib.PDFDocument.load(await f.file.arrayBuffer(), { ignoreEncryption: true });
+					const pages = await out.copyPages(src, src.getPageIndices());
+					pages.forEach((p) => out.addPage(p));
+				}
+				const bytes = await out.save();
+				let name = document.getElementById("outName").value.trim() || "merged.pdf";
+				if (!name.toLowerCase().endsWith(".pdf")) name += ".pdf";
+				Lab.download(bytes, name, "application/pdf");
+				Lab.status(status, `Done: ${out.getPageCount()} pages, ${Lab.formatBytes(bytes.length)}`, "ok");
+			} catch (e) {
+				Lab.status(status, "Merge failed: " + e.message, "error");
+			}
+			mergeBtn.disabled = false;
+		});
+	</script>
+</body>
+
+</html>

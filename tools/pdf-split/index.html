@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Split &amp; Extract PDF | Lab</title>
+	<meta name="description" content="Extract pages or split a PDF in your browser. Free and private. Files are never uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">PDF</div>
+			<h1>Split &amp; Extract PDF</h1>
+			<p>Pull out just the pages you need (a camera-ready paper without the appendix, one chapter of a
+				thesis), or split every page into its own file.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-file-pdf"></i></div>
+			<strong>Drop a PDF here</strong>
+			<span>or click to choose a file</span>
+		</div>
+
+		<ul class="file-list" id="list"></ul>
+
+		<div class="panel">
+			<p class="panel-title">Mode</p>
+			<div class="segmented" id="mode" style="margin-bottom:1rem">
+				<button class="is-active" data-mode="extract">Extract pages → one PDF</button>
+				<button data-mode="ranges">Each range → separate PDF</button>
+				<button data-mode="every">Every page → separate PDF</button>
+			</div>
+			<label class="field" id="rangeField">Pages
+				<input type="text" id="ranges" class="mono" placeholder="e.g. 1-3, 5, 8-10">
+				<span class="hint">Comma-separated pages or ranges. Use <code>-</code> for a range, e.g.
+					<code>2-</code> means page 2 to the end.</span>
+			</label>
+			<div class="btn-row">
+				<button class="btn" id="run" disabled><i class="fa-solid fa-scissors"></i> Split PDF</button>
+				<span class="status" id="status"></span>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Split & Extract PDF");
+
+		let source = null; // { file, doc, pages }
+		let mode = "extract";
+		const runBtn = document.getElementById("run");
+		const status = document.getElementById("status");
+		const rangesInput = document.getElementById("ranges");
+		const rangeField = document.getElementById("rangeField");
+		const baseName = () => source.file.name.replace(/\.pdf$/i, "");
+
+		Lab.dropzone(document.getElementById("drop"), {
+			accept: "application/pdf,.pdf",
+			multiple: false,
+			onFiles: async ([file]) => {
+				try {
+					const doc = await PDFLib.PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true });
+					source = { file, doc, pages: doc.getPageCount() };
+					rangesInput.placeholder = `e.g. 1-${Math.min(3, source.pages)}${source.pages > 4 ? ", " + source.pages : ""}`;
+					Lab.status(status, "");
+				} catch (e) {
+					source = null;
+					Lab.status(status, "Could not read that PDF.", "error");
+				}
+				render();
+			}
+		});
+
+		function render() {
+			document.getElementById("list").innerHTML = source ? `
+				<li class="file-item">
+					<span class="thumb"><i class="fa-regular fa-file-pdf"></i></span>
+					<div class="meta">
+						<div class="name">${Lab.escape(source.file.name)}</div>
+						<div class="sub">${source.pages} pages · ${Lab.formatBytes(source.file.size)}</div>
+					</div>
+				</li>` : "";
+			runBtn.disabled = !source;
+		}
+
+		document.getElementById("mode").addEventListener("click", (e) => {
+			const b = e.target.closest("button");
+			if (!b) return;
+			mode = b.dataset.mode;
+			document.querySelectorAll("#mode button").forEach((x) => x.classList.toggle("is-active", x === b));
+			rangeField.style.display = mode === "every" ? "none" : "";
+		});
+
+		// "1-3, 5, 8-" -> [[0,1,2],[4],[7..n-1]] (zero-based groups)
+		function parseRanges(text, n) {
+			const groups = [];
+			for (const part of text.split(",").map((s) => s.trim()).filter(Boolean)) {
+				const m = part.match(/^(\d*)\s*-\s*(\d*)$/);
+				let a, b;
+				if (m) {
+					a = m[1] ? +m[1] : 1;
+					b = m[2] ? +m[2] : n;
+				} else if (/^\d+$/.test(part)) {
+					a = b = +part;
+				} else {
+					throw new Error(`"${part}" isn't a page or range`);
+				}
+				if (a < 1 || b > n || a > b) throw new Error(`"${part}" is outside 1–${n}`);
+				const g = [];
+				for (let i = a; i <= b; i++) g.push(i - 1);
+				groups.push({ label: a === b ? `${a}` : `${a}-${b}`, pages: g });
+			}
+			if (!groups.length) throw new Error("Enter at least one page");
+			return groups;
+		}
+
+		async function build(indices) {
+			const out = await PDFLib.PDFDocument.create();
+			const pages = await out.copyPages(source.doc, indices);
+			pages.forEach((p) => out.addPage(p));
+			return out.save();
+		}
+
+		runBtn.addEventListener("click", async () => {
+			runBtn.disabled = true;
+			try {
+				let groups;
+				if (mode === "every") {
+					groups = source.doc.getPageIndices().map((i) => ({ label: `${i + 1}`, pages: [i] }));
+				} else {
+					groups = parseRanges(rangesInput.value, source.pages);
+				}
+				if (mode === "extract") {
+					const pages = [...new Set(groups.flatMap((g) => g.pages))];
+					const bytes = await build(pages);
+					Lab.download(bytes, `${baseName()}_pages_${groups.map((g) => g.label).join("_")}.pdf`, "application/pdf");
+					Lab.status(status, `Extracted ${pages.length} page(s)`, "ok");
+				} else {
+					if (groups.length > 20) Lab.status(status, `Saving ${groups.length} files. Your browser may ask to allow multiple downloads.`);
+					for (let k = 0; k < groups.length; k++) {
+						const bytes = await build(groups[k].pages);
+						Lab.download(bytes, `${baseName()}_p${groups[k].label}.pdf`, "application/pdf");
+						await new Promise((r) => setTimeout(r, 250));
+					}
+					Lab.status(status, `Saved ${groups.length} file(s)`, "ok");
+				}
+			} catch (e) {
+				Lab.status(status, e.message, "error");
+			}
+			runBtn.disabled = false;
+		});
+	</script>
+</body>
+
+</html>

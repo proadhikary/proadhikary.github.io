@@ -255,7 +255,8 @@ function initializeDefaultSection() {
 		tutorials: "#tutorialsContent",
 		experience: "#experienceContent",
 		conferences: "#conferencesContent",
-		projects: "#projectsContent"
+		projects: "#projectsContent",
+		lab: "#labContent"
 	};
 
 	if (!sectionMap[defaultSection]) {

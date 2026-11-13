@@ -57,8 +57,8 @@
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 	<link rel="stylesheet" href="https://cdn.rawgit.com/jpswalsh/academicons/master/css/academicons.min.css">
-	<link rel="stylesheet" href="assets/css/main.css">
-	<link rel="stylesheet" href="assets/css/light.css">
+	<link rel="stylesheet" href="assets/css/main.css?v=20261113o">
+	<link rel="stylesheet" href="assets/css/light.css?v=20261113">
 
 </head>
 
@@ -90,6 +90,10 @@
 					</li>
 					<li class="nav-item">
 						<a class="nav-link" id="tutorials" href="projects.html" data-es="কার্যক্রম" data-en="Projects">
+						</a>
+					</li>
+					<li class="nav-item">
+						<a class="nav-link" id="lab" href="tools.html" data-es="ল্যাব" data-en="Lab">
 						</a>
 					</li>
 				</ul>
@@ -272,6 +276,9 @@
 								</ul><br>
 							</div>
 
+						</div>
+
+						<div class="academic-block">
 							<div class="lucida-console h5 academic-name language"> National Institute of
 								Technology
 								Silchar</div>
@@ -290,6 +297,9 @@
 								</ul><br>
 							</div>
 
+						</div>
+
+						<div class="academic-block">
 							<div class="lucida-console h5 academic-name language"> National Institute of
 								Technology
 								Silchar</div>
@@ -312,6 +322,9 @@
 								</ul><br>
 							</div>
 
+						</div>
+
+						<div class="academic-block">
 							<div class="lucida-console h5 academic-name language"> Indian Institute of
 								Technology, Guwahati</div>
 							<div class="academic-rol mt-1 language">Summer Research Intern (Onsite)
@@ -516,7 +529,7 @@
 		(function (C, A, L) { let p = function (a, ar) { a.q.push(ar); }; let d = C.document; C.Cal = C.Cal || function () { let cal = C.Cal; let ar = arguments; if (!cal.loaded) { cal.ns = {}; cal.q = cal.q || []; d.head.appendChild(d.createElement("script")).src = A; cal.loaded = true; } if (ar[0] === L) { const api = function () { p(api, arguments); }; const namespace = ar[1]; api.q = api.q || []; if (typeof namespace === "string") { cal.ns[namespace] = cal.ns[namespace] || api; p(cal.ns[namespace], ar); p(cal, ["initNamespace", namespace]); } else p(cal, ar); return; } p(cal, ar); }; })(window, "https://app.cal.com/embed/embed.js", "init");
 		Cal("init", "quick-call", { origin: "https://app.cal.com" });
 
-		Cal.ns["quick-call"]("floatingButton", { "calLink": "proadhikary/quick-call", "config": { "layout": "month_view" }, "buttonText": "Schedule a call", "hideButtonIcon": false, "buttonPosition": "bottom-left" });
+		Cal.ns["quick-call"]("floatingButton", { "calLink": "proadhikary/quick-call", "config": { "layout": "month_view" }, "buttonText": "Schedule a call", "hideButtonIcon": false, "buttonPosition": window.innerWidth <= 768 ? "bottom-right" : "bottom-left" });
 		Cal.ns["quick-call"]("ui", { "hideEventTypeDetails": false, "layout": "month_view" });
 	</script>
 	<!-- Cal floating-popup embed code ends -->
@@ -531,7 +544,8 @@
 	<script>
 		window.defaultSection = "academic";
 	</script>
-	<script src="assets/js/main.js"></script>
+	<script src="assets/js/main.js?v=20261113"></script>
+	<script src="assets/js/experience.js?v=20261113e"></script>
 </body>
 
 </html>

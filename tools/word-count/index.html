@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Word Counter &amp; Readability | Lab</title>
+	<meta name="description" content="Count words, characters and sentences, estimate reading time and Flesch readability in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		#text {
+			font-family: var(--serif);
+			font-size: 1.08rem;
+			min-height: 300px;
+		}
+
+		.limit-bar {
+			height: 6px;
+			border-radius: 3px;
+			background: var(--paper-2);
+			overflow: hidden;
+			margin-top: 0.5rem;
+		}
+
+		.limit-bar span {
+			display: block;
+			height: 100%;
+			background: var(--accent);
+			transition: width .2s;
+		}
+
+		.limit-bar.over span {
+			background: var(--oxblood);
+		}
+
+		.top-words {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.4rem;
+		}
+
+		.top-words span {
+			font-size: 0.82rem;
+			padding: 0.2rem 0.6rem;
+			border-radius: 999px;
+			border: 1px solid var(--rule);
+			background: #fff;
+		}
+
+		.top-words b {
+			color: var(--muted);
+			font-weight: 500;
+			margin-left: 0.25rem;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Text</div>
+			<h1>Word Counter &amp; Readability</h1>
+			<p>Check an abstract against a word limit, see how long a talk script runs, and get a quick readability
+				score.</p>
+		</div>
+
+		<div class="panel">
+			<textarea id="text" placeholder="Paste or type your text here…"></textarea>
+			<div class="btn-row" style="margin-top:.75rem">
+				<label class="hint" style="display:flex;gap:.5rem;align-items:center">Word limit
+					<input type="number" id="limit" placeholder="e.g. 250" min="1" style="width:110px">
+				</label>
+				<span class="status" id="limitStatus"></span>
+			</div>
+			<div class="limit-bar" id="limitBar" hidden><span></span></div>
+		</div>
+
+		<div class="stats" style="margin-bottom:1rem">
+			<div class="stat"><div class="stat-value" id="words">0</div><div class="stat-label">Words</div></div>
+			<div class="stat"><div class="stat-value" id="chars">0</div><div class="stat-label">Characters</div></div>
+			<div class="stat"><div class="stat-value" id="charsNs">0</div><div class="stat-label">No spaces</div></div>
+			<div class="stat"><div class="stat-value" id="sentences">0</div><div class="stat-label">Sentences</div></div>
+			<div class="stat"><div class="stat-value" id="paras">0</div><div class="stat-label">Paragraphs</div></div>
+			<div class="stat"><div class="stat-value" id="read">0s</div><div class="stat-label">Reading time</div></div>
+			<div class="stat"><div class="stat-value" id="speak">0s</div><div class="stat-label">Speaking time</div></div>
+			<div class="stat"><div class="stat-value" id="flesch">–</div><div class="stat-label" id="fleschLabel">Flesch ease</div></div>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">Most frequent words <span class="hint">(common stop-words removed)</span></p>
+			<div class="top-words" id="top"><span class="hint">Start typing to see them.</span></div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Word Counter");
+
+		const $ = (id) => document.getElementById(id);
+		const STOP = new Set("a an the and or but if of to in on at by for with from as is are was were be been being it its this that these those we our you your he she they them their his her i me my not no so than then there here which who whom what when where why how can could will would should may might must do does did done have has had also into over under such via per each both more most other some any all".split(" "));
+
+		function syllables(word) {
+			word = word.toLowerCase().replace(/[^a-z]/g, "");
+			if (word.length <= 3) return 1;
+			word = word.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, "").replace(/^y/, "");
+			const m = word.match(/[aeiouy]{1,2}/g);
+			return Math.max(1, m ? m.length : 1);
+		}
+
+		const time = (sec) => (sec < 60 ? Math.round(sec) + "s" : Math.floor(sec / 60) + "m " + Math.round(sec % 60) + "s");
+
+		function fleschLabel(s) {
+			if (s >= 70) return "Easy";
+			if (s >= 50) return "Fairly hard";
+			if (s >= 30) return "Hard (academic)";
+			return "Very hard";
+		}
+
+		function update() {
+			const t = $("text").value;
+			const words = t.match(/[\p{L}\p{N}][\p{L}\p{N}'’\-]*/gu) || [];
+			const sentences = (t.match(/[^.!?।]+[.!?।]+|[^.!?।]+$/g) || []).filter((s) => /[\p{L}\p{N}]/u.test(s));
+			const paras = t.split(/\n\s*\n/).filter((p) => p.trim()).length;
+			$("words").textContent = words.length.toLocaleString();
+			$("chars").textContent = t.length.toLocaleString();
+			$("charsNs").textContent = t.replace(/\s/g, "").length.toLocaleString();
+			$("sentences").textContent = sentences.length;
+			$("paras").textContent = paras;
+			$("read").textContent = time((words.length / 238) * 60);
+			$("speak").textContent = time((words.length / 140) * 60);
+
+			const latin = words.filter((w) => /^[a-z'’\-]+$/i.test(w));
+			if (latin.length >= 30 && sentences.length) {
+				const syl = latin.reduce((s, w) => s + syllables(w), 0);
+				const score = 206.835 - 1.015 * (latin.length / sentences.length) - 84.6 * (syl / latin.length);
+				$("flesch").textContent = Math.round(Math.max(0, Math.min(100, score)));
+				$("fleschLabel").textContent = "Flesch · " + fleschLabel(score);
+			} else {
+				$("flesch").textContent = "–";
+				$("fleschLabel").textContent = "Flesch ease";
+			}
+
+			const counts = {};
+			words.forEach((w) => {
+				const k = w.toLowerCase();
+				if (k.length > 2 && !STOP.has(k) && !/^\d+$/.test(k)) counts[k] = (counts[k] || 0) + 1;
+			});
+			const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 15);
+			$("top").innerHTML = top.length
+				? top.map(([w, c]) => `<span>${Lab.escape(w)}<b>${c}</b></span>`).join("")
+				: '<span class="hint">Start typing to see them.</span>';
+
+			const limit = +$("limit").value;
+			const bar = $("limitBar");
+			if (limit > 0) {
+				bar.hidden = false;
+				const over = words.length > limit;
+				bar.classList.toggle("over", over);
+				bar.firstElementChild.style.width = Math.min(100, (words.length / limit) * 100) + "%";
+				Lab.status($("limitStatus"), over ? `${words.length - limit} over the limit` : `${limit - words.length} left`, over ? "error" : "ok");
+			} else {
+				bar.hidden = true;
+				Lab.status($("limitStatus"), "");
+			}
+			try { localStorage.setItem("lab-wordcount", t); } catch (e) { }
+		}
+
+		try { $("text").value = localStorage.getItem("lab-wordcount") || ""; } catch (e) { }
+		$("text").addEventListener("input", update);
+		$("limit").addEventListener("input", update);
+		update();
+	</script>
+</body>
+
+</html>

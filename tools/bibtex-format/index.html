@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>BibTeX Formatter | Lab</title>
+	<meta name="description" content="Convert BibTeX entries into APA, IEEE, MLA or Chicago formatted references, in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.refs {
+			font-family: var(--serif);
+			font-size: 1.05rem;
+			line-height: 1.6;
+			color: var(--ink);
+			padding-left: 0;
+			margin: 0;
+			list-style: none;
+			counter-reset: ref;
+		}
+
+		.refs li {
+			padding: 0.6rem 0 0.6rem 2rem;
+			text-indent: -2rem;
+			border-bottom: 1px solid var(--rule);
+		}
+
+		.refs li:last-child {
+			border-bottom: 0;
+		}
+
+		.refs.numbered li {
+			counter-increment: ref;
+			text-indent: -2.4rem;
+			padding-left: 2.4rem;
+		}
+
+		.refs.numbered li::before {
+			content: "[" counter(ref) "]";
+			display: inline-block;
+			width: 2.4rem;
+			text-indent: 0;
+			color: var(--muted);
+			font-family: var(--sans);
+			font-size: 0.85rem;
+		}
+
+		.refs .warn {
+			font-family: var(--sans);
+			font-size: 0.78rem;
+			color: var(--oxblood);
+			text-indent: 0;
+			display: block;
+		}
+
+		.out-head {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.75rem;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 0.75rem;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Research</div>
+			<h1>BibTeX Formatter</h1>
+			<p>Paste entries from Google Scholar, DBLP or your <code>.bib</code> file and get a clean reference list
+				for a CV, report or grant application.</p>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">BibTeX input</p>
+			<textarea id="input" class="mono" spellcheck="false">@inproceedings{adhikary2026cotherapist,
+  author    = {Adhikary, Prottay Kumar and Rawat, Reena and Chakraborty, Tanmoy},
+  title     = {coTherapist: A Behavior-Aligned Small Language Model Framework to Support Mental Healthcare Experts},
+  booktitle = {Proceedings of the ACM Web Conference 2026},
+  year      = {2026},
+  publisher = {Association for Computing Machinery},
+  doi       = {10.1145/3774904.3792988}
+}
+
+@article{adhikary2026discourse,
+  author  = {Adhikary, Prottay Kumar and Mukherjee, Ankit and Deb, Koushik Sinha and Singh, Suruchi and Singh, Salam Michael and Chakraborty, Tanmoy},
+  journal = {IEEE Journal of Biomedical and Health Informatics},
+  title   = {Discourse-Guided Summarisation of Psychotherapy Dialogues via Graph-Fused Language Models},
+  year    = {2026},
+  pages   = {1--10},
+  doi     = {10.1109/JBHI.2026.3726138}
+}</textarea>
+		</div>
+
+		<div class="panel">
+			<div class="out-head">
+				<div class="segmented" id="style">
+					<button class="is-active" data-style="apa">APA 7</button>
+					<button data-style="ieee">IEEE</button>
+					<button data-style="mla">MLA 9</button>
+					<button data-style="chicago">Chicago</button>
+				</div>
+				<div class="btn-row">
+					<label class="hint" style="display:flex;gap:.4rem;align-items:center">
+						<input type="checkbox" id="sort"> Sort by author
+					</label>
+					<button class="btn ghost" id="copyText"><i class="fa-regular fa-copy"></i> Copy</button>
+					<button class="btn ghost" id="copyHtml" title="Keeps italics when pasted into Word/Docs"><i
+							class="fa-solid fa-code"></i> Copy rich</button>
+				</div>
+			</div>
+			<ol class="refs" id="out"></ol>
+			<p class="status" id="status"></p>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("BibTeX Formatter");
+
+		const $ = (id) => document.getElementById(id);
+		let style = "apa";
+
+		/* ---------- BibTeX parsing ---------- */
+		function parseBib(src) {
+			const entries = [];
+			let i = 0;
+			while ((i = src.indexOf("@", i)) !== -1) {
+				const head = src.slice(i).match(/^@(\w+)\s*[{(]/);
+				if (!head) { i++; continue; }
+				const type = head[1].toLowerCase();
+				if (["comment", "preamble", "string"].includes(type)) { i += head[0].length; continue; }
+				let j = i + head[0].length, depth = 1;
+				while (j < src.length && depth > 0) {
+					if (src[j] === "{" || src[j] === "(") depth++;
+					else if (src[j] === "}" || src[j] === ")") depth--;
+					j++;
+				}
+				const body = src.slice(i + head[0].length, j - 1);
+				const comma = body.indexOf(",");
+				const key = body.slice(0, comma).trim();
+				entries.push({ type, key, fields: parseFields(body.slice(comma + 1)) });
+				i = j;
+			}
+			return entries;
+		}
+
+		function parseFields(s) {
+			const fields = {};
+			let i = 0;
+			while (i < s.length) {
+				const m = s.slice(i).match(/^[\s,]*([\w-]+)\s*=\s*/);
+				if (!m) break;
+				const name = m[1].toLowerCase();
+				i += m[0].length;
+				let val = "";
+				if (s[i] === "{") {
+					let depth = 1, j = i + 1;
+					while (j < s.length && depth > 0) {
+						if (s[j] === "{") depth++;
+						else if (s[j] === "}") depth--;
+						j++;
+					}
+					val = s.slice(i + 1, j - 1);
+					i = j;
+				} else if (s[i] === '"') {
+					const j = s.indexOf('"', i + 1);
+					val = s.slice(i + 1, j);
+					i = j + 1;
+				} else {
+					const m2 = s.slice(i).match(/^[^,}]+/);
+					val = m2 ? m2[0].trim() : "";
+					i += m2 ? m2[0].length : 1;
+				}
+				fields[name] = clean(val);
+			}
+			return fields;
+		}
+
+		const ACCENTS = { "'": "́", "`": "̀", "^": "̂", '"': "̈", "~": "̃", "c": "̧", "=": "̄", ".": "̇", "v": "̌", "u": "̆", "H": "̋" };
+		function clean(v) {
+			return v
+				.replace(/\\([`'^"~=.])\{?(\w)\}?/g, (_, a, ch) => (ch + ACCENTS[a]).normalize("NFC"))
+				.replace(/\\([cvuH])\{(\w)\}/g, (_, a, ch) => (ch + ACCENTS[a]).normalize("NFC"))
+				.replace(/\\&/g, "&").replace(/\\%/g, "%").replace(/\\_/g, "_").replace(/\\\$/g, "$")
+				.replace(/\\(textit|emph|textbf|textrm|mathrm)\{([^}]*)\}/g, "$2")
+				.replace(/--/g, "–")
+				.replace(/[{}]/g, "")
+				.replace(/\s+/g, " ")
+				.trim();
+		}
+
+		/* ---------- Names ---------- */
+		function parseNames(s) {
+			if (!s) return [];
+			return s.split(/\s+and\s+/i).map((n) => n.trim()).filter(Boolean).map((n) => {
+				if (/^others$/i.test(n)) return { others: true };
+				if (n.includes(",")) {
+					const [last, first] = n.split(",").map((x) => x.trim());
+					return { last, first: first || "" };
+				}
+				const parts = n.split(/\s+/);
+				return { last: parts.pop(), first: parts.join(" ") };
+			});
+		}
+		const initials = (first, sep = " ") => first.split(/[\s]+/).filter(Boolean)
+			.map((p) => p.split("-").map((q) => q[0].toUpperCase() + ".").join("-")).join(sep);
+
+		function joinList(arr, conj, oxford = true) {
+			if (arr.length <= 1) return arr.join("");
+			if (arr.length === 2) return `${arr[0]}${oxford && conj === "&" ? "," : ""} ${conj} ${arr[1]}`;
+			return arr.slice(0, -1).join(", ") + `, ${conj} ` + arr[arr.length - 1];
+		}
+
+		/* ---------- Styles ---------- */
+		const it = (s) => `<i>${s}</i>`;
+		const dot = (s) => (s && !/[.?!]$/.test(s) ? s + "." : s);
+		const doiUrl = (f) => (f.doi ? `https://doi.org/${f.doi.replace(/^https?:\/\/(dx\.)?doi\.org\//, "")}` : f.url || "");
+		const venue = (e) => e.fields.journal || e.fields.booktitle || e.fields.publisher || e.fields.school || e.fields.institution || "";
+		const sentenceCase = (t) => t.replace(/(^|[:.?!]\s+)([a-z])(?=[a-z]*\b)/g, (m) => m.toUpperCase()).replace(/\b([A-Z])([a-z]+)\b/g, (m, a, b, off, str) => (off === 0 || /[:.?!]\s+$/.test(str.slice(0, off)) ? m : a.toLowerCase() + b));
+
+		const STYLES = {
+			apa(e) {
+				const f = e.fields, names = parseNames(f.author).filter((n) => !n.others);
+				const fmt = names.map((n) => `${n.last}, ${initials(n.first)}`);
+				let authors = names.length > 20 ? fmt.slice(0, 19).join(", ") + ", … " + fmt[fmt.length - 1] : joinList(fmt, "&");
+				let s = `${authors} (${f.year || "n.d."}). `;
+				const title = sentenceCase(f.title || "");
+				if (e.type === "article") {
+					s += `${dot(title)} ${it(f.journal || "")}`;
+					if (f.volume) s += `, ${it(f.volume)}`;
+					if (f.number) s += `(${f.number})`;
+					if (f.pages) s += `, ${f.pages}`;
+					s += ".";
+				} else if (e.type === "inproceedings" || e.type === "incollection") {
+					s += `${dot(title)} In ${it(f.booktitle || "")}`;
+					if (f.pages) s += ` (pp. ${f.pages})`;
+					s += ".";
+					if (f.publisher) s += ` ${dot(f.publisher)}`;
+				} else {
+					s += `${it(dot(title))}`;
+					if (f.publisher || f.school || f.institution) s += ` ${dot(f.publisher || f.school || f.institution)}`;
+				}
+				const link = doiUrl(f);
+				return link ? `${s} ${link}` : s;
+			},
+			ieee(e) {
+				const f = e.fields, names = parseNames(f.author);
+				const fmt = names.map((n) => (n.others ? "et al." : `${initials(n.first)} ${n.last}`));
+				let authors = fmt.length > 6 ? fmt[0] + " et al." : joinList(fmt.filter((x) => x !== "et al."), "and", false) + (fmt.includes("et al.") ? " et al." : "");
+				let s = `${authors}, “${f.title || ""},” `;
+				if (e.type === "article") {
+					s += it(f.journal || "");
+					if (f.volume) s += `, vol. ${f.volume}`;
+					if (f.number) s += `, no. ${f.number}`;
+					if (f.pages) s += `, pp. ${f.pages}`;
+					s += `, ${f.year || ""}`;
+				} else if (e.type === "inproceedings") {
+					s += `in ${it(f.booktitle || "")}`;
+					if (f.address) s += `, ${f.address}`;
+					s += `, ${f.year || ""}`;
+					if (f.pages) s += `, pp. ${f.pages}`;
+				} else {
+					s += [f.publisher || f.school || f.institution, f.year].filter(Boolean).join(", ");
+				}
+				s += ".";
+				if (f.doi) s += ` doi: ${f.doi}.`;
+				return s;
+			},
+			mla(e) {
+				const f = e.fields, names = parseNames(f.author).filter((n) => !n.others);
+				let authors = "";
+				if (names.length === 1) authors = `${names[0].last}, ${names[0].first}`;
+				else if (names.length === 2) authors = `${names[0].last}, ${names[0].first}, and ${names[1].first} ${names[1].last}`;
+				else if (names.length > 2) authors = `${names[0].last}, ${names[0].first}, et al`;
+				let s = authors ? dot(authors) + " " : "";
+				s += `“${dot(f.title || "")}” `;
+				const parts = [it(venue(e))];
+				if (f.volume) parts.push(`vol. ${f.volume}`);
+				if (f.number) parts.push(`no. ${f.number}`);
+				if (e.type !== "article" && f.publisher) parts.push(f.publisher);
+				if (f.year) parts.push(f.year);
+				if (f.pages) parts.push(`pp. ${f.pages}`);
+				s += parts.filter(Boolean).join(", ") + ".";
+				const link = doiUrl(f);
+				return link ? `${s} ${link.replace(/^https:\/\//, "")}.` : s;
+			},
+			chicago(e) {
+				const f = e.fields, names = parseNames(f.author).filter((n) => !n.others);
+				const fmt = names.map((n, i) => (i === 0 ? `${n.last}, ${n.first}` : `${n.first} ${n.last}`));
+				let authors = names.length > 10 ? fmt.slice(0, 7).join(", ") + ", et al" : joinList(fmt, "and");
+				let s = `${dot(authors)} ${f.year || "n.d."}. “${dot(f.title || "")}” `;
+				if (e.type === "article") {
+					s += it(f.journal || "");
+					if (f.volume) s += ` ${f.volume}`;
+					if (f.number) s += ` (${f.number})`;
+					if (f.pages) s += `: ${f.pages}`;
+					s += ".";
+				} else if (e.type === "inproceedings") {
+					s += `In ${it(f.booktitle || "")}`;
+					if (f.pages) s += `, ${f.pages}`;
+					s += ".";
+					if (f.publisher) s += ` ${dot(f.publisher)}`;
+				} else if (f.publisher) {
+					s += dot(f.publisher);
+				}
+				const link = doiUrl(f);
+				return link ? `${s} ${link}.` : s;
+			}
+		};
+
+		function render() {
+			const entries = parseBib($("input").value);
+			if ($("sort").checked) {
+				entries.sort((a, b) => {
+					const la = (parseNames(a.fields.author)[0] || {}).last || "";
+					const lb = (parseNames(b.fields.author)[0] || {}).last || "";
+					return la.localeCompare(lb) || (a.fields.year || "").localeCompare(b.fields.year || "");
+				});
+			}
+			const out = $("out");
+			out.className = "refs" + (style === "ieee" ? " numbered" : "");
+			out.innerHTML = entries.map((e) => {
+				const missing = ["author", "title", "year"].filter((k) => !e.fields[k]);
+				return `<li>${STYLES[style](e)}${missing.length ? `<span class="warn">${Lab.escape(e.key)}: missing ${missing.join(", ")}</span>` : ""}</li>`;
+			}).join("");
+			Lab.status($("status"), entries.length ? `${entries.length} reference(s)` : "No BibTeX entries found yet.");
+		}
+
+		function plainText() {
+			return [...$("out").children].map((li, i) => {
+				const clone = li.cloneNode(true);
+				clone.querySelectorAll(".warn").forEach((w) => w.remove());
+				return (style === "ieee" ? `[${i + 1}] ` : "") + clone.textContent.trim();
+			}).join("\n\n");
+		}
+
+		$("style").addEventListener("click", (e) => {
+			const b = e.target.closest("button");
+			if (!b) return;
+			style = b.dataset.style;
+			document.querySelectorAll("#style button").forEach((x) => x.classList.toggle("is-active", x === b));
+			render();
+		});
+		$("input").addEventListener("input", render);
+		$("sort").addEventListener("change", render);
+		$("copyText").addEventListener("click", (e) => Lab.copy(plainText(), e.currentTarget));
+		$("copyHtml").addEventListener("click", async (e) => {
+			const btn = e.currentTarget;
+			const html = [...$("out").children].map((li, i) => {
+				const c = li.cloneNode(true);
+				c.querySelectorAll(".warn").forEach((w) => w.remove());
+				return `<p>${style === "ieee" ? `[${i + 1}] ` : ""}${c.innerHTML}</p>`;
+			}).join("");
+			try {
+				await navigator.clipboard.write([new ClipboardItem({
+					"text/html": new Blob([html], { type: "text/html" }),
+					"text/plain": new Blob([plainText()], { type: "text/plain" })
+				})]);
+				const old = btn.innerHTML;
+				btn.innerHTML = '<i class="fa-solid fa-check"></i> Copied';
+				setTimeout(() => (btn.innerHTML = old), 1400);
+			} catch (err) {
+				Lab.copy(plainText(), btn);
+			}
+		});
+
+		render();
+	</script>
+</body>
+
+</html>

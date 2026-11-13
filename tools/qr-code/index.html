@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>QR Code Maker | Lab</title>
+	<meta name="description" content="Make QR codes for posters, slides and business cards. Download as PNG or SVG.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.preview {
+			display: grid;
+			place-items: center;
+			background: repeating-conic-gradient(var(--paper-2) 0 25%, #fff 0 50%) 0 0 / 16px 16px;
+			border-radius: 8px;
+			padding: 1.5rem;
+			min-height: 300px;
+		}
+
+		.preview svg {
+			width: 100%;
+			max-width: 280px;
+			height: auto;
+			display: block;
+			box-shadow: 0 10px 30px -18px rgba(0, 0, 0, .5);
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Text</div>
+			<h1>QR Code Maker</h1>
+			<p>Link a conference poster to the paper, a slide to the demo, or a business card to your profile.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Generated locally, no tracking
+				redirects</span>
+		</div>
+
+		<div class="grid-2">
+			<div class="panel">
+				<label class="field">Text or URL
+					<textarea id="text" style="min-height:110px">https://proadhikary.github.io</textarea>
+				</label>
+				<div class="grid-2">
+					<label class="field">Foreground
+						<input type="color" id="fg" value="#1d1f23">
+					</label>
+					<label class="field">Background
+						<input type="color" id="bg" value="#ffffff">
+					</label>
+				</div>
+				<div class="grid-2">
+					<label class="field">Error correction
+						<select id="ecc">
+							<option value="L">Low (7%)</option>
+							<option value="M" selected>Medium (15%)</option>
+							<option value="Q">Quartile (25%)</option>
+							<option value="H">High (30%)</option>
+						</select>
+					</label>
+					<label class="field">PNG size (px)
+						<select id="px">
+							<option>512</option>
+							<option selected>1024</option>
+							<option>2048</option>
+						</select>
+					</label>
+				</div>
+				<span class="hint">Higher error correction survives smudges and folds on printed posters, at the cost
+					of a denser code.</span>
+			</div>
+			<div class="panel">
+				<div class="preview" id="preview"></div>
+				<div class="btn-row" style="margin-top:1rem">
+					<button class="btn" id="png"><i class="fa-solid fa-download"></i> PNG</button>
+					<button class="btn ghost" id="svg"><i class="fa-solid fa-bezier-curve"></i> SVG</button>
+					<span class="status" id="status"></span>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("QR Code Maker");
+
+		const $ = (id) => document.getElementById(id);
+		const QUIET = 4; // modules of white border required by the spec
+		let current = null;
+
+		function build() {
+			const text = $("text").value;
+			if (!text) {
+				$("preview").innerHTML = '<span class="hint">Type something to encode.</span>';
+				current = null;
+				return;
+			}
+			try {
+				qrcode.stringToBytes = qrcode.stringToBytesFuncs["UTF-8"];
+				const qr = qrcode(0, $("ecc").value);
+				qr.addData(text, "Byte");
+				qr.make();
+				current = qr;
+				$("preview").innerHTML = svgString();
+				Lab.status($("status"), `${qr.getModuleCount()}×${qr.getModuleCount()} modules`);
+			} catch (e) {
+				current = null;
+				$("preview").innerHTML = "";
+				Lab.status($("status"), "Too much text for a QR code.", "error");
+			}
+		}
+
+		function svgString() {
+			const n = current.getModuleCount(), size = n + QUIET * 2;
+			let path = "";
+			for (let r = 0; r < n; r++)
+				for (let c = 0; c < n; c++)
+					if (current.isDark(r, c)) path += `M${c + QUIET} ${r + QUIET}h1v1h-1z`;
+			return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" shape-rendering="crispEdges">` +
+				`<rect width="${size}" height="${size}" fill="${$("bg").value}"/>` +
+				`<path d="${path}" fill="${$("fg").value}"/></svg>`;
+		}
+
+		$("png").addEventListener("click", () => {
+			if (!current) return;
+			const px = +$("px").value;
+			const n = current.getModuleCount(), size = n + QUIET * 2;
+			const cell = Math.floor(px / size);
+			const c = document.createElement("canvas");
+			c.width = c.height = cell * size;
+			const ctx = c.getContext("2d");
+			ctx.fillStyle = $("bg").value;
+			ctx.fillRect(0, 0, c.width, c.height);
+			ctx.fillStyle = $("fg").value;
+			for (let r = 0; r < n; r++)
+				for (let col = 0; col < n; col++)
+					if (current.isDark(r, col)) ctx.fillRect((col + QUIET) * cell, (r + QUIET) * cell, cell, cell);
+			c.toBlob((b) => Lab.download(b, "qr-code.png"), "image/png");
+		});
+
+		$("svg").addEventListener("click", () => {
+			if (current) Lab.download(svgString(), "qr-code.svg", "image/svg+xml");
+		});
+
+		["text", "fg", "bg", "ecc"].forEach((id) => $(id).addEventListener("input", build));
+		build();
+	</script>
+</body>
+
+</html>
