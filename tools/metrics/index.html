@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Classification Metrics | Lab</title>
+	<meta name="description" content="Get per-class precision, recall and F1, accuracy, macro, weighted and micro averages from a confusion matrix or label lists. Copy as Markdown or LaTeX.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.table-wrap {
+			overflow-x: auto;
+		}
+
+		table.data {
+			border-collapse: collapse;
+			font-size: 0.88rem;
+			font-variant-numeric: tabular-nums;
+		}
+
+		table.data th,
+		table.data td {
+			border: 1px solid var(--rule);
+			padding: 0.4rem 0.65rem;
+			text-align: right;
+			white-space: nowrap;
+		}
+
+		table.data th {
+			background: var(--paper-2);
+			font-weight: 500;
+		}
+
+		table.data th.left,
+		table.data td.left {
+			text-align: left;
+		}
+
+		table.data tr.sep td,
+		table.data tr.sep th {
+			border-top: 2px solid var(--rule-strong);
+		}
+
+		table.grid td,
+		table.grid th {
+			padding: 0.25rem;
+		}
+
+		table.grid input {
+			width: 4.6rem;
+			padding: 0.35rem 0.4rem;
+			text-align: right;
+		}
+
+		table.grid td.diag input {
+			font-weight: 700;
+			background: var(--paper-2);
+		}
+
+		.names {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+			gap: 0.5rem;
+			margin-bottom: 1rem;
+		}
+
+		.names input {
+			padding: 0.4rem 0.55rem;
+		}
+
+		.inline {
+			display: inline-flex;
+			gap: 0.5rem;
+			align-items: center;
+			font-size: 0.85rem;
+		}
+
+		.inline select {
+			width: auto;
+		}
+
+		.list-box {
+			min-height: 220px;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Research</div>
+			<h1>Classification Metrics</h1>
+			<p>Enter a confusion matrix or paste gold and predicted labels. You get precision, recall and F1 for each
+				class plus the usual averages, ready to paste into a paper.</p>
+		</div>
+
+		<div class="panel">
+			<div class="btn-row" style="margin-bottom:1rem">
+				<div class="segmented" id="mode">
+					<button type="button" data-mode="matrix" class="is-active">Confusion matrix</button>
+					<button type="button" data-mode="labels">Label lists</button>
+				</div>
+			</div>
+
+			<div id="matrixMode">
+				<div class="btn-row" style="margin-bottom:1rem">
+					<label class="inline">Classes
+						<select id="k"></select>
+					</label>
+				</div>
+				<p class="panel-title" style="margin-bottom:.5rem">Class names (optional)</p>
+				<div class="names" id="names"></div>
+				<p class="panel-title" style="margin-bottom:.5rem">Counts. Rows are the true class, columns are the predicted class.</p>
+				<div class="table-wrap"><table class="data grid" id="grid"></table></div>
+			</div>
+
+			<div id="labelsMode" hidden>
+				<div class="grid-2">
+					<label class="field">Gold labels (one per line)
+						<textarea id="gold" class="mono list-box" spellcheck="false"></textarea>
+					</label>
+					<label class="field">Predicted labels (one per line)
+						<textarea id="pred" class="mono list-box" spellcheck="false"></textarea>
+					</label>
+				</div>
+			</div>
+
+			<div class="btn-row" style="margin-top:1rem">
+				<button type="button" class="btn ghost" id="example"><i class="fa-solid fa-flask"></i> Load example</button>
+				<button type="button" class="btn ghost" id="clear"><i class="fa-solid fa-eraser"></i> Clear</button>
+				<label class="inline">Decimals
+					<select id="dp"><option>2</option><option selected>3</option><option>4</option></select>
+				</label>
+			</div>
+			<p class="status" id="status"></p>
+		</div>
+
+		<div id="results" hidden>
+			<div class="stats" style="margin-bottom:1rem" id="stats"></div>
+			<div class="panel">
+				<p class="panel-title">Per-class results</p>
+				<div class="table-wrap" id="out"></div>
+				<div class="btn-row" style="margin-top:1rem">
+					<button type="button" class="btn" id="copyMd"><i class="fa-solid fa-copy"></i> Copy Markdown</button>
+					<button type="button" class="btn ghost" id="copyTex"><i class="fa-solid fa-copy"></i> Copy LaTeX</button>
+				</div>
+				<p class="hint" style="margin-bottom:0">Precision for a class that was never predicted is reported as 0, the same as scikit-learn's default. Micro F1 equals accuracy for single-label classification.</p>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Classification Metrics");
+
+		const $ = (id) => document.getElementById(id);
+		let mode = "matrix";
+		let k = 2;
+		let classNames = [];
+		let counts = [[0, 0], [0, 0]];
+		let lastRows = null;
+
+		for (let i = 2; i <= 10; i++) $("k").insertAdjacentHTML("beforeend", `<option value="${i}">${i}</option>`);
+
+		const defaultName = (i) => "Class " + (i + 1);
+		const nameOf = (i) => (classNames[i] && classNames[i].trim()) || defaultName(i);
+
+		function resize(newK) {
+			const old = counts;
+			counts = Array.from({ length: newK }, (_, i) => Array.from({ length: newK }, (_, j) => (old[i] && old[i][j]) || 0));
+			classNames = Array.from({ length: newK }, (_, i) => classNames[i] || "");
+			k = newK;
+			$("k").value = String(k);
+			renderInputs();
+		}
+
+		function renderInputs() {
+			$("names").innerHTML = classNames
+				.map((n, i) => `<input type="text" data-name="${i}" value="${Lab.escape(n)}" placeholder="${defaultName(i)}" aria-label="Name of class ${i + 1}">`)
+				.join("");
+			renderGrid();
+		}
+
+		function renderGrid() {
+			let h = '<tr><th class="left" style="color:var(--muted);font-size:.78rem">true \\ pred</th>';
+			for (let j = 0; j < k; j++) h += "<th>" + Lab.escape(nameOf(j)) + "</th>";
+			h += "</tr>";
+			for (let i = 0; i < k; i++) {
+				h += '<tr><th class="left">' + Lab.escape(nameOf(i)) + "</th>";
+				for (let j = 0; j < k; j++) {
+					h += `<td${i === j ? ' class="diag"' : ""}><input type="number" min="0" step="1" inputmode="numeric" data-i="${i}" data-j="${j}" value="${counts[i][j]}" aria-label="true ${Lab.escape(nameOf(i))}, predicted ${Lab.escape(nameOf(j))}"></td>`;
+				}
+				h += "</tr>";
+			}
+			$("grid").innerHTML = h;
+		}
+
+		$("names").addEventListener("input", (e) => {
+			const i = e.target.dataset.name;
+			if (i === undefined) return;
+			classNames[+i] = e.target.value;
+			// Update header cells without re-rendering inputs (keeps focus).
+			const ths = $("grid").querySelectorAll("tr:first-child th");
+			if (ths[+i + 1]) ths[+i + 1].textContent = nameOf(+i);
+			const rowTh = $("grid").querySelectorAll("tr")[+i + 1];
+			if (rowTh) rowTh.firstElementChild.textContent = nameOf(+i);
+			update();
+		});
+
+		$("grid").addEventListener("input", (e) => {
+			const t = e.target;
+			if (t.dataset.i === undefined) return;
+			const v = Math.max(0, Math.floor(+t.value || 0));
+			counts[+t.dataset.i][+t.dataset.j] = v;
+			update();
+		});
+
+		$("k").addEventListener("change", () => {
+			resize(+$("k").value);
+			update();
+		});
+
+		function fromLabels() {
+			const g = $("gold").value.split(/\r?\n/).map((s) => s.trim());
+			const p = $("pred").value.split(/\r?\n/).map((s) => s.trim());
+			while (g.length && !g[g.length - 1]) g.pop();
+			while (p.length && !p[p.length - 1]) p.pop();
+			if (!g.length && !p.length) return null;
+			if (g.length !== p.length) throw new Error(`Gold has ${g.length} labels and predicted has ${p.length}. They need to line up one to one.`);
+			g.forEach((x, i) => {
+				if (!x || !p[i]) throw new Error(`Line ${i + 1} is empty in one of the lists.`);
+			});
+			const set = new Set([...g, ...p]);
+			const names = [...set].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+			if (names.length > 50) throw new Error(`Found ${names.length} distinct labels. That looks like the wrong input.`);
+			const idx = new Map(names.map((n, i) => [n, i]));
+			const m = names.map(() => names.map(() => 0));
+			g.forEach((x, i) => m[idx.get(x)][idx.get(p[i])]++);
+			return { names, m };
+		}
+
+		function compute(names, m) {
+			const n = names.length;
+			const total = m.reduce((s, r) => s + r.reduce((a, b) => a + b, 0), 0);
+			const rows = [];
+			let correct = 0;
+			for (let i = 0; i < n; i++) {
+				const tp = m[i][i];
+				correct += tp;
+				const support = m[i].reduce((a, b) => a + b, 0);
+				const predicted = m.reduce((s, r) => s + r[i], 0);
+				const precision = predicted ? tp / predicted : 0;
+				const recall = support ? tp / support : 0;
+				const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
+				rows.push({ name: names[i], precision, recall, f1, support, predicted });
+			}
+			const mean = (key) => rows.reduce((s, r) => s + r[key], 0) / n;
+			const wmean = (key) => (total ? rows.reduce((s, r) => s + r[key] * r.support, 0) / total : 0);
+			const accuracy = total ? correct / total : 0;
+			return {
+				rows,
+				total,
+				accuracy,
+				macro: { precision: mean("precision"), recall: mean("recall"), f1: mean("f1") },
+				weighted: { precision: wmean("precision"), recall: wmean("recall"), f1: wmean("f1") },
+				micro: accuracy
+			};
+		}
+
+		function stat(value, label) {
+			return `<div class="stat"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+		}
+
+		function tableRows(r, d) {
+			const f = (x) => x.toFixed(d);
+			const out = r.rows.map((x) => [x.name, f(x.precision), f(x.recall), f(x.f1), String(x.support)]);
+			out.push(null);
+			out.push(["Accuracy", "", "", f(r.accuracy), String(r.total)]);
+			out.push(["Macro avg", f(r.macro.precision), f(r.macro.recall), f(r.macro.f1), String(r.total)]);
+			out.push(["Weighted avg", f(r.weighted.precision), f(r.weighted.recall), f(r.weighted.f1), String(r.total)]);
+			out.push(["Micro F1", "", "", f(r.micro), String(r.total)]);
+			return out;
+		}
+
+		const HEAD = ["Class", "Precision", "Recall", "F1", "Support"];
+
+		function toMarkdown(rows) {
+			const body = rows.filter(Boolean).map((r) => "| " + r.join(" | ") + " |");
+			return ["| " + HEAD.join(" | ") + " |", "|:---|---:|---:|---:|---:|", ...body].join("\n");
+		}
+
+		const texEsc = (s) => s.replace(/([\\&%$#_{}])/g, (c) => (c === "\\" ? "\\textbackslash{}" : "\\" + c)).replace(/~/g, "\\textasciitilde{}").replace(/\^/g, "\\textasciicircum{}");
+
+		function toLatex(rows) {
+			const lines = [
+				"\\begin{tabular}{lrrrr}",
+				"\\hline",
+				HEAD.join(" & ") + " \\\\",
+				"\\hline"
+			];
+			rows.forEach((r) => {
+				if (!r) lines.push("\\hline");
+				else lines.push(texEsc(r[0]) + " & " + r.slice(1).join(" & ") + " \\\\");
+			});
+			lines.push("\\hline", "\\end{tabular}");
+			return lines.join("\n");
+		}
+
+		function update() {
+			let names, m;
+			try {
+				if (mode === "labels") {
+					const res = fromLabels();
+					if (!res) {
+						Lab.status($("status"), "");
+						$("results").hidden = true;
+						lastRows = null;
+						return;
+					}
+					names = res.names;
+					m = res.m;
+				} else {
+					names = Array.from({ length: k }, (_, i) => nameOf(i));
+					const seen = new Set();
+					names.forEach((n) => {
+						if (seen.has(n)) throw new Error(`The class name "${n}" is used twice.`);
+						seen.add(n);
+					});
+					m = counts;
+				}
+			} catch (e) {
+				Lab.status($("status"), e.message, "error");
+				$("results").hidden = true;
+				lastRows = null;
+				return;
+			}
+
+			const r = compute(names, m);
+			if (!r.total) {
+				Lab.status($("status"), mode === "matrix" ? "Enter some counts in the grid." : "");
+				$("results").hidden = true;
+				lastRows = null;
+				return;
+			}
+			Lab.status($("status"), `${r.total} items, ${names.length} classes.`, "ok");
+			$("results").hidden = false;
+			const d = +$("dp").value;
+			$("stats").innerHTML =
+				stat(r.accuracy.toFixed(d), "Accuracy") +
+				stat(r.macro.f1.toFixed(d), "Macro F1") +
+				stat(r.weighted.f1.toFixed(d), "Weighted F1") +
+				stat(r.micro.toFixed(d), "Micro F1");
+
+			const rows = tableRows(r, d);
+			lastRows = rows;
+			let h = '<table class="data"><tr>' + HEAD.map((x, i) => `<th${i ? "" : ' class="left"'}>${x}</th>`).join("") + "</tr>";
+			let sep = false;
+			rows.forEach((row) => {
+				if (!row) {
+					sep = true;
+					return;
+				}
+				h += `<tr${sep ? ' class="sep"' : ""}><th class="left">${Lab.escape(row[0])}</th>` + row.slice(1).map((c) => `<td>${c}</td>`).join("") + "</tr>";
+				sep = false;
+			});
+			h += "</table>";
+			$("out").innerHTML = h;
+		}
+
+		document.querySelectorAll("#mode button").forEach((b) =>
+			b.addEventListener("click", () => {
+				mode = b.dataset.mode;
+				document.querySelectorAll("#mode button").forEach((x) => x.classList.toggle("is-active", x === b));
+				$("matrixMode").hidden = mode !== "matrix";
+				$("labelsMode").hidden = mode !== "labels";
+				update();
+			})
+		);
+
+		$("example").addEventListener("click", () => {
+			if (mode === "labels") {
+				const gold = "cat cat cat cat cat dog dog dog dog bird bird bird cat dog bird cat dog dog bird cat".split(" ");
+				const pred = "cat cat dog cat cat dog dog cat dog bird bird dog cat dog cat cat dog bird bird cat".split(" ");
+				$("gold").value = gold.join("\n");
+				$("pred").value = pred.join("\n");
+			} else {
+				classNames = ["positive", "neutral", "negative"];
+				counts = [[50, 8, 2], [10, 35, 5], [3, 6, 41]];
+				k = 3;
+				$("k").value = "3";
+				renderInputs();
+			}
+			update();
+		});
+
+		$("clear").addEventListener("click", () => {
+			if (mode === "labels") {
+				$("gold").value = $("pred").value = "";
+			} else {
+				counts = counts.map((r) => r.map(() => 0));
+				classNames = classNames.map(() => "");
+				renderInputs();
+			}
+			update();
+		});
+
+		$("copyMd").addEventListener("click", (e) => lastRows && Lab.copy(toMarkdown(lastRows), e.currentTarget));
+		$("copyTex").addEventListener("click", (e) => lastRows && Lab.copy(toLatex(lastRows), e.currentTarget));
+		$("dp").addEventListener("change", update);
+		["gold", "pred"].forEach((id) => $(id).addEventListener("input", update));
+
+		resize(2);
+		update();
+	</script>
+</body>
+
+</html>

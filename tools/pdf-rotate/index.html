@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Rotate &amp; Delete PDF Pages | Lab</title>
+	<meta name="description" content="Rotate or delete pages in a PDF in your browser, with page previews. Files are never uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.pages {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+			gap: 0.75rem;
+			margin-bottom: 1rem;
+		}
+
+		@media (max-width: 420px) {
+			.pages {
+				grid-template-columns: repeat(2, 1fr);
+			}
+		}
+
+		.page-card {
+			border: 1px solid var(--rule);
+			border-radius: 8px;
+			background: var(--card);
+			padding: 0.5rem;
+			display: flex;
+			flex-direction: column;
+			gap: 0.4rem;
+		}
+
+		.page-view {
+			aspect-ratio: 1 / 1;
+			background: var(--paper-2);
+			border-radius: 4px;
+			display: grid;
+			place-items: center;
+			overflow: hidden;
+			position: relative;
+		}
+
+		.page-view canvas {
+			max-width: 100%;
+			max-height: 100%;
+			box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+			background: #fff;
+		}
+
+		.page-card.is-deleted .page-view canvas {
+			opacity: 0.2;
+		}
+
+		.page-card.is-deleted .page-view::after {
+			content: "Deleted";
+			position: absolute;
+			font-size: 0.8rem;
+			font-weight: 600;
+			color: var(--oxblood);
+		}
+
+		.page-foot {
+			display: flex;
+			align-items: center;
+			gap: 0.25rem;
+		}
+
+		.page-foot .num {
+			flex: 1;
+			font-size: 0.8rem;
+			color: var(--muted);
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">PDF</div>
+			<h1>Rotate &amp; Delete PDF Pages</h1>
+			<p>Fix sideways scans and drop blank or unwanted pages. Use the buttons under each preview, then download
+				the new file.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-file-pdf"></i></div>
+			<strong>Drop a PDF here</strong>
+			<span>or click to choose a file</span>
+		</div>
+
+		<div class="panel" id="tools" hidden>
+			<div class="btn-row">
+				<button class="btn ghost" id="rotL"><i class="fa-solid fa-rotate-left"></i> Rotate all left</button>
+				<button class="btn ghost" id="rotR"><i class="fa-solid fa-rotate-right"></i> Rotate all right</button>
+				<button class="btn ghost" id="reset">Reset</button>
+			</div>
+		</div>
+
+		<div class="pages" id="pages"></div>
+
+		<div class="btn-row">
+			<button class="btn" id="save" disabled><i class="fa-solid fa-download"></i> Download PDF</button>
+			<button class="btn ghost" id="clear" disabled>Clear</button>
+			<span class="status" id="status"></span>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+	<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Rotate & Delete Pages");
+		pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+		const $ = (id) => document.getElementById(id);
+		const THUMB = 220; // longest side in CSS px
+		let state = null; // { file, bytes, pdf, pages: [{ base, extra, deleted, page }] }
+		let loadId = 0;
+
+		Lab.dropzone($("drop"), {
+			accept: "application/pdf,.pdf",
+			multiple: false,
+			onFiles: ([file]) => load(file)
+		});
+
+		async function load(file) {
+			const id = ++loadId;
+			if (state && state.pdf) state.pdf.destroy();
+			state = null;
+			$("pages").innerHTML = "";
+			Lab.status($("status"), "Reading…");
+			try {
+				const bytes = new Uint8Array(await file.arrayBuffer());
+				// pdf.js transfers its buffer to the worker, so give it a copy.
+				const pdf = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+				if (id !== loadId) return;
+				state = { file, bytes, pdf, pages: [] };
+				for (let i = 1; i <= pdf.numPages; i++) state.pages.push({ base: 0, extra: 0, deleted: false, page: null });
+				buildGrid();
+				update();
+				for (let i = 0; i < pdf.numPages; i++) {
+					if (id !== loadId) return;
+					const p = await pdf.getPage(i + 1);
+					state.pages[i].page = p;
+					state.pages[i].base = p.rotate || 0;
+					await draw(i);
+				}
+			} catch (e) {
+				Lab.status($("status"), "Could not read this PDF: " + e.message, "error");
+				update();
+			}
+		}
+
+		function buildGrid() {
+			$("pages").innerHTML = state.pages.map((_, i) => `
+				<div class="page-card" data-i="${i}">
+					<div class="page-view"><canvas></canvas></div>
+					<div class="page-foot">
+						<span class="num">Page ${i + 1}</span>
+						<button class="icon-btn" data-act="left" aria-label="Rotate page ${i + 1} left"><i class="fa-solid fa-rotate-left"></i></button>
+						<button class="icon-btn" data-act="right" aria-label="Rotate page ${i + 1} right"><i class="fa-solid fa-rotate-right"></i></button>
+						<button class="icon-btn" data-act="del" aria-label="Delete page ${i + 1}"><i class="fa-solid fa-trash-can"></i></button>
+					</div>
+				</div>`).join("");
+		}
+
+		async function draw(i) {
+			const s = state.pages[i];
+			if (!s.page) return;
+			const card = $("pages").children[i];
+			const canvas = card.querySelector("canvas");
+			const rotation = (s.base + s.extra) % 360;
+			const v1 = s.page.getViewport({ scale: 1, rotation });
+			const dpr = Math.min(2, window.devicePixelRatio || 1);
+			const scale = (THUMB / Math.max(v1.width, v1.height)) * dpr;
+			const vp = s.page.getViewport({ scale, rotation });
+			const off = document.createElement("canvas");
+			off.width = Math.ceil(vp.width);
+			off.height = Math.ceil(vp.height);
+			await s.page.render({ canvasContext: off.getContext("2d"), viewport: vp }).promise;
+			canvas.width = off.width;
+			canvas.height = off.height;
+			canvas.getContext("2d").drawImage(off, 0, 0);
+			card.classList.toggle("is-deleted", s.deleted);
+			card.querySelector('[data-act="del"]').innerHTML = s.deleted ? '<i class="fa-solid fa-trash-arrow-up"></i>' : '<i class="fa-solid fa-trash-can"></i>';
+			card.querySelector('[data-act="del"]').setAttribute("aria-label", (s.deleted ? "Restore" : "Delete") + " page " + (i + 1));
+		}
+
+		function update() {
+			$("tools").hidden = !state;
+			$("clear").disabled = !state;
+			if (!state) {
+				$("save").disabled = true;
+				return;
+			}
+			const kept = state.pages.filter((p) => !p.deleted).length;
+			const rotated = state.pages.filter((p) => !p.deleted && p.extra % 360).length;
+			const removed = state.pages.length - kept;
+			$("save").disabled = kept === 0;
+			if (kept === 0) Lab.status($("status"), "Keep at least one page", "error");
+			else Lab.status($("status"), `${kept} of ${state.pages.length} pages kept` + (removed ? `, ${removed} deleted` : "") + (rotated ? `, ${rotated} rotated` : ""));
+		}
+
+		$("pages").addEventListener("click", (e) => {
+			const b = e.target.closest("button[data-act]");
+			if (!b || !state) return;
+			const i = +b.closest(".page-card").dataset.i;
+			const s = state.pages[i];
+			if (b.dataset.act === "left") s.extra = (s.extra + 270) % 360;
+			if (b.dataset.act === "right") s.extra = (s.extra + 90) % 360;
+			if (b.dataset.act === "del") {
+				s.deleted = !s.deleted;
+				$("pages").children[i].classList.toggle("is-deleted", s.deleted);
+			}
+			draw(i);
+			update();
+		});
+
+		function rotateAll(by) {
+			if (!state) return;
+			state.pages.forEach((s, i) => {
+				s.extra = (s.extra + by) % 360;
+				draw(i);
+			});
+			update();
+		}
+		$("rotL").addEventListener("click", () => rotateAll(270));
+		$("rotR").addEventListener("click", () => rotateAll(90));
+		$("reset").addEventListener("click", () => {
+			if (!state) return;
+			state.pages.forEach((s, i) => {
+				s.extra = 0;
+				s.deleted = false;
+				draw(i);
+			});
+			update();
+		});
+
+		$("clear").addEventListener("click", () => {
+			loadId++;
+			if (state && state.pdf) state.pdf.destroy();
+			state = null;
+			$("pages").innerHTML = "";
+			update();
+			Lab.status($("status"), "");
+		});
+
+		$("save").addEventListener("click", async () => {
+			$("save").disabled = true;
+			Lab.status($("status"), "Building PDF…");
+			try {
+				const doc = await PDFLib.PDFDocument.load(state.bytes, { ignoreEncryption: true });
+				const pages = doc.getPages();
+				state.pages.forEach((s, i) => {
+					if (s.extra % 360) {
+						const cur = pages[i].getRotation().angle || 0;
+						pages[i].setRotation(PDFLib.degrees((((cur + s.extra) % 360) + 360) % 360));
+					}
+				});
+				for (let i = state.pages.length - 1; i >= 0; i--) if (state.pages[i].deleted) doc.removePage(i);
+				const bytes = await doc.save();
+				const name = state.file.name.replace(/\.pdf$/i, "") + "_edited.pdf";
+				Lab.download(bytes, name, "application/pdf");
+				Lab.status($("status"), `Done: ${doc.getPageCount()} pages, ${Lab.formatBytes(bytes.length)}`, "ok");
+			} catch (e) {
+				Lab.status($("status"), "Failed: " + e.message, "error");
+			}
+			$("save").disabled = false;
+		});
+	</script>
+</body>
+
+</html>

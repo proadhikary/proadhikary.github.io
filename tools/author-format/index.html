@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Author List Formatter | Lab</title>
+	<meta name="description" content="Turn a list of author names into IEEE, APA, Vancouver, plain or BibTeX format, with optional et al. Runs in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		#input {
+			min-height: 180px;
+		}
+
+		#output {
+			min-height: 110px;
+			font-family: var(--serif);
+			font-size: 1rem;
+		}
+
+		.out-head {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.75rem;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 0.85rem;
+		}
+
+		.out-head label {
+			display: flex;
+			gap: 0.4rem;
+			align-items: center;
+		}
+
+		#etal {
+			width: 80px;
+			padding: 0.35rem 0.5rem;
+		}
+
+		.parsed {
+			list-style: none;
+			padding: 0;
+			margin: 0;
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.4rem;
+		}
+
+		.parsed li {
+			font-size: 0.82rem;
+			padding: 0.2rem 0.6rem;
+			border-radius: 999px;
+			border: 1px solid var(--rule);
+			background: #fff;
+		}
+
+		.parsed b {
+			font-weight: 600;
+		}
+
+		.parsed span {
+			color: var(--muted);
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Research</div>
+			<h1>Author List Formatter</h1>
+			<p>Paste author names in any common form and get them back in the style your venue asks for.</p>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">Names</p>
+			<textarea id="input" spellcheck="false" placeholder="One name per line, or separated by commas or &quot;and&quot;">Prottay Kumar Adhikary
+Smith, Jane A.
+Ludwig van Beethoven
+María-José García Jr.</textarea>
+			<p class="hint" style="margin:.5rem 0 0">Works with "First Middle Last", "Last, First", "Last FM" and BibTeX
+				lists joined with "and". Put each name on its own line if a list is read wrongly.</p>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">How the names were read <span class="hint">(family name in bold)</span></p>
+			<ul class="parsed" id="parsed"></ul>
+		</div>
+
+		<div class="panel">
+			<div class="out-head">
+				<div class="segmented" id="style">
+					<button class="is-active" data-v="ieee">IEEE</button>
+					<button data-v="apa">APA</button>
+					<button data-v="vancouver">Vancouver</button>
+					<button data-v="plain">Plain</button>
+					<button data-v="bibtex">BibTeX</button>
+				</div>
+				<div class="btn-row">
+					<label class="hint">Et al. after <input type="number" id="etal" min="1" placeholder="off"> authors</label>
+					<button class="btn ghost" id="copy"><i class="fa-regular fa-copy"></i> Copy</button>
+				</div>
+			</div>
+			<p class="hint" id="example" style="margin:0 0 .5rem"></p>
+			<textarea id="output" readonly spellcheck="false"></textarea>
+			<p class="status" id="status"></p>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Author List Formatter");
+
+		const $ = (id) => document.getElementById(id);
+		let style = "ieee";
+
+		const EXAMPLES = {
+			ieee: "J. M. Smith, A. Lee, and K. Roy",
+			apa: "Smith, J. M., Lee, A., & Roy, K.",
+			vancouver: "Smith JM, Lee A, Roy K",
+			plain: "John Michael Smith, Ann Lee, and Kumar Roy",
+			bibtex: "Smith, John Michael and Lee, Ann and Roy, Kumar"
+		};
+
+		const PARTICLES = new Set("van von der den de del della di da du des la le ter ten dos das do bin ibn al el".split(" "));
+		const SUFFIX = /^(jr\.?|sr\.?|ii|iii|iv|v)$/i;
+		const words = (s) => s.trim().split(/\s+/).filter(Boolean);
+		const isInitials = (w) => /^(\p{Lu}\.?-?)+$/u.test(w) && w.replace(/[.\-]/g, "").length <= 3;
+
+		// "Smith, John" style
+		function fromLastFirst(last, first, suffix) {
+			return { last: last.trim(), given: words(first), suffix: suffix || "" };
+		}
+
+		// "John van Smith Jr." or "Smith JM" style
+		function fromFirstLast(s) {
+			let w = words(s);
+			let suffix = "";
+			if (w.length > 1 && SUFFIX.test(w[w.length - 1].replace(/,$/, ""))) suffix = w.pop().replace(/,$/, "");
+			if (w.length === 1) return { last: w[0], given: [], suffix };
+			// Vancouver input: "Smith JM" or "van der Berg J"
+			const tail = w[w.length - 1];
+			if (/^\p{Lu}{1,3}$/u.test(tail) && !isInitials(w[0])) {
+				return { last: w.slice(0, -1).join(" "), given: tail.split(""), suffix };
+			}
+			let i = w.length - 1;
+			while (i > 1 && PARTICLES.has(w[i - 1].toLowerCase()) && w[i - 1] === w[i - 1].toLowerCase()) i--;
+			if (i === 1 && PARTICLES.has(w[0].toLowerCase()) && w[0] === w[0].toLowerCase()) i = 0;
+			if (i === 0) i = w.length - 1;
+			return { last: w.slice(i).join(" "), given: w.slice(0, i), suffix };
+		}
+
+		// A chunk with commas is either "Last, First" pairs or a list of "First Last" names.
+		function splitChunk(chunk) {
+			const parts = chunk.split(",").map((p) => p.trim()).filter(Boolean);
+			if (parts.length === 1) return [fromFirstLast(parts[0])];
+			const clean = [];
+			parts.forEach((p) => (SUFFIX.test(p) && clean.length ? (clean[clean.length - 1] += "|" + p) : clean.push(p)));
+			const oneWord = clean.some((p) => words(p.split("|")[0]).length === 1 || words(p.split("|")[0]).every(isInitials));
+			if (oneWord && clean.length % 2 === 0) {
+				const out = [];
+				for (let i = 0; i < clean.length; i += 2) {
+					const [last, suffix] = clean[i].split("|");
+					out.push(fromLastFirst(last, clean[i + 1].split("|")[0], suffix));
+				}
+				return out;
+			}
+			return clean.map((p) => {
+				const [name, suffix] = p.split("|");
+				const r = fromFirstLast(name);
+				if (suffix) r.suffix = suffix;
+				return r;
+			});
+		}
+
+		function parse(text) {
+			const chunks = text.replace(/\r/g, "").split(/[\n;]+/)
+				.flatMap((line) => line.split(/\s*,?\s+(?:and|&)\s+|\s*,?\s*&\s*/i))
+				.map((s) => s.replace(/\s+/g, " ").trim().replace(/^and\s+/i, "").replace(/[.,]$/, (m) => (m === "." ? m : "")))
+				.filter(Boolean);
+			return chunks.flatMap(splitChunk).filter((a) => a.last);
+		}
+
+		// "J.-M." for Jean-Marc, "J. M." for "J.M." or "JM"
+		function initials(given, dots) {
+			const out = [];
+			given.forEach((g) => {
+				if (/^(\p{Lu}\.?)+$/u.test(g) && g.replace(/\./g, "").length <= 3) {
+					g.replace(/\./g, "").split("").forEach((c) => out.push(dots ? c + "." : c));
+				} else {
+					out.push(g.split("-").filter(Boolean).map((p) => [...p][0].toUpperCase() + (dots ? "." : "")).join("-"));
+				}
+			});
+			return out;
+		}
+
+		const sfx = (a, sep) => (a.suffix ? sep + a.suffix : "");
+
+		const FORMAT = {
+			ieee: (a) => [...initials(a.given, true), a.last].join(" ") + sfx(a, ", "),
+			apa: (a) => a.last + (a.given.length ? ", " + initials(a.given, true).join(" ") : "") + sfx(a, ", "),
+			vancouver: (a) => a.last + (a.given.length ? " " + initials(a.given, false).join("").replace(/-/g, "") : "") + sfx(a, " "),
+			plain: (a) => [...a.given, a.last].join(" ") + sfx(a, " "),
+			bibtex: (a) => a.last + (a.suffix ? ", " + a.suffix : "") + (a.given.length ? ", " + a.given.join(" ") : "")
+		};
+
+		function join(list, kind, cut) {
+			const n = list.length;
+			if (kind === "bibtex") return list.join(" and ") + (cut ? " and others" : "");
+			if (kind === "vancouver") return list.join(", ") + (cut ? ", et al." : "");
+			if (cut) return n === 1 ? list[0] + " et al." : list.join(", ") + ", et al.";
+			if (n === 1) return list[0];
+			if (kind === "apa") return n === 2 ? `${list[0]}, & ${list[1]}` : list.slice(0, -1).join(", ") + ", & " + list[n - 1];
+			if (n === 2) return `${list[0]} and ${list[1]}`;
+			return list.slice(0, -1).join(", ") + ", and " + list[n - 1];
+		}
+
+		function update() {
+			const authors = parse($("input").value);
+			$("parsed").innerHTML = authors.length
+				? authors.map((a) => `<li>${Lab.escape(a.given.join(" "))} <b>${Lab.escape(a.last)}</b>${a.suffix ? " <span>" + Lab.escape(a.suffix) + "</span>" : ""}</li>`).join("")
+				: '<li class="hint" style="border:0;padding:0">Nothing yet.</li>';
+			$("example").textContent = "Example: " + EXAMPLES[style];
+			const limit = parseInt($("etal").value, 10);
+			const cut = limit > 0 && authors.length > limit;
+			const shown = cut ? authors.slice(0, limit) : authors;
+			$("output").value = authors.length ? join(shown.map(FORMAT[style]), style, cut) : "";
+			Lab.status($("status"), authors.length ? `${authors.length} author${authors.length === 1 ? "" : "s"}${cut ? `, showing ${limit}` : ""}` : "");
+		}
+
+		$("style").addEventListener("click", (e) => {
+			const b = e.target.closest("button");
+			if (!b) return;
+			$("style").querySelectorAll("button").forEach((x) => x.classList.toggle("is-active", x === b));
+			style = b.dataset.v;
+			update();
+		});
+		$("input").addEventListener("input", update);
+		$("etal").addEventListener("input", update);
+		$("copy").addEventListener("click", (e) => Lab.copy($("output").value, e.currentTarget));
+		update();
+	</script>
+</body>
+
+</html>

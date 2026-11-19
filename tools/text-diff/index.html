@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Compare Texts | Lab</title>
+	<meta name="description" content="Compare two versions of a text word by word or line by line and see what was added or removed. Runs in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		textarea {
+			min-height: 200px;
+		}
+
+		.bar {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.6rem 1rem;
+			align-items: center;
+			margin-bottom: 1rem;
+		}
+
+		.bar label {
+			display: flex;
+			gap: 0.4rem;
+			align-items: center;
+			font-size: 0.88rem;
+			cursor: pointer;
+		}
+
+		.bar input[type="checkbox"] {
+			accent-color: var(--ink);
+		}
+
+		.diff {
+			font-family: var(--serif);
+			font-size: 1rem;
+			line-height: 1.7;
+			color: var(--ink);
+			white-space: pre-wrap;
+			overflow-wrap: anywhere;
+		}
+
+		.diff del {
+			color: var(--oxblood);
+			text-decoration: line-through;
+		}
+
+		.diff ins {
+			color: var(--ok);
+			text-decoration: underline;
+			text-underline-offset: 3px;
+			font-weight: 600;
+		}
+
+		.diff.lines {
+			font-family: var(--mono);
+			font-size: 0.82rem;
+			line-height: 1.6;
+		}
+
+		.diff.lines div {
+			padding: 0 0.5rem 0 1.6rem;
+			text-indent: -1.1rem;
+			min-height: 1.6em;
+		}
+
+		.diff.lines div::before {
+			content: attr(data-sign);
+			display: inline-block;
+			width: 1.1rem;
+			text-indent: 0;
+			color: var(--muted);
+		}
+
+		.diff.lines div.del,
+		.diff.lines div.ins {
+			background: var(--paper-2);
+		}
+
+		.diff .empty {
+			font-family: var(--sans);
+			color: var(--muted);
+			font-size: 0.9rem;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Text</div>
+			<h1>Compare Texts</h1>
+			<p>Paste two versions of a paragraph, abstract or response letter to see exactly what changed between
+				them.</p>
+		</div>
+
+		<div class="grid-2">
+			<div class="panel">
+				<p class="panel-title">Original</p>
+				<textarea id="a" placeholder="Paste the original text…" spellcheck="false"></textarea>
+			</div>
+			<div class="panel">
+				<p class="panel-title">Revised</p>
+				<textarea id="b" placeholder="Paste the revised text…" spellcheck="false"></textarea>
+			</div>
+		</div>
+
+		<div class="stats" style="margin-bottom:1rem">
+			<div class="stat"><div class="stat-value" id="added">0</div><div class="stat-label">Words added</div></div>
+			<div class="stat"><div class="stat-value" id="removed">0</div><div class="stat-label">Words removed</div></div>
+			<div class="stat"><div class="stat-value" id="same">0</div><div class="stat-label">Words unchanged</div></div>
+		</div>
+
+		<div class="panel">
+			<div class="bar">
+				<div class="segmented" id="mode">
+					<button class="is-active" data-v="word">Words</button>
+					<button data-v="line">Lines</button>
+				</div>
+				<label><input type="checkbox" id="icase"> Ignore case</label>
+				<button class="btn ghost" id="swap"><i class="fa-solid fa-right-left"></i> Swap</button>
+			</div>
+			<div class="diff" id="out"><span class="empty">Paste text in both boxes to see the differences.</span></div>
+			<p class="status" id="status"></p>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Compare Texts");
+
+		const $ = (id) => document.getElementById(id);
+		let mode = "word";
+		const MAX_CELLS = 9e6; // about 3000 x 3000 tokens after trimming the shared start and end
+		const countWords = (s) => (s.match(/\S+/g) || []).length;
+
+		// Word tokens keep their trailing whitespace so the output keeps line breaks.
+		function tokenize(text, byLine, icase) {
+			if (byLine) {
+				return text.split("\n").map((l) => ({ text: l, key: (icase ? l.toLowerCase() : l).replace(/\s+$/, "") }));
+			}
+			const out = [];
+			const re = /(\S+)(\s*)/g;
+			let m;
+			while ((m = re.exec(text))) out.push({ text: m[1], ws: m[2], key: icase ? m[1].toLowerCase() : m[1] });
+			return out;
+		}
+
+		// Classic LCS on the middle part, after removing the common prefix and suffix.
+		function diff(A, B) {
+			let s = 0;
+			while (s < A.length && s < B.length && A[s].key === B[s].key) s++;
+			let ea = A.length, eb = B.length;
+			while (ea > s && eb > s && A[ea - 1].key === B[eb - 1].key) { ea--; eb--; }
+			const a = A.slice(s, ea), b = B.slice(s, eb);
+			const n = a.length, m = b.length;
+			if (n * m > MAX_CELLS) return null;
+
+			const W = m + 1;
+			const L = new Uint32Array((n + 1) * W);
+			for (let i = n - 1; i >= 0; i--) {
+				for (let j = m - 1; j >= 0; j--) {
+					L[i * W + j] = a[i].key === b[j].key ? L[(i + 1) * W + j + 1] + 1 : Math.max(L[(i + 1) * W + j], L[i * W + j + 1]);
+				}
+			}
+			const ops = [];
+			for (let k = 0; k < s; k++) ops.push(["=", A[k], B[k]]);
+			let i = 0, j = 0;
+			while (i < n && j < m) {
+				if (a[i].key === b[j].key) { ops.push(["=", a[i], b[j]]); i++; j++; }
+				else if (L[(i + 1) * W + j] >= L[i * W + j + 1]) ops.push(["-", a[i++]]);
+				else ops.push(["+", b[j++]]);
+			}
+			while (i < n) ops.push(["-", a[i++]]);
+			while (j < m) ops.push(["+", b[j++]]);
+			for (let k = 0; k < A.length - ea; k++) ops.push(["=", A[ea + k], B[eb + k]]);
+
+			// Within each changed run, show all deletions first, then all insertions.
+			const tidy = [];
+			let dels = [], adds = [];
+			const flush = () => { tidy.push(...dels, ...adds); dels = []; adds = []; };
+			for (const op of ops) {
+				if (op[0] === "-") dels.push(op);
+				else if (op[0] === "+") adds.push(op);
+				else { flush(); tidy.push(op); }
+			}
+			flush();
+			return tidy;
+		}
+
+		function renderWords(ops) {
+			let html = "";
+			let run = null, buf = "";
+			const close = () => {
+				if (!run) return;
+				const trail = (buf.match(/\s+$/) || [""])[0];
+				html += `<${run}>${Lab.escape(buf.slice(0, buf.length - trail.length))}</${run}>` + (trail.includes("\n") ? trail : trail ? " " : "");
+				run = null; buf = "";
+			};
+			ops.forEach((op) => {
+				if (op[0] === "=") {
+					close();
+					html += Lab.escape(op[2].text + op[2].ws);
+					return;
+				}
+				const tag = op[0] === "-" ? "del" : "ins";
+				if (run !== tag) close();
+				run = tag;
+				const ws = op[1].ws.includes("\n") && tag === "ins" ? op[1].ws : " ";
+				buf += op[1].text + ws;
+			});
+			close();
+			return html;
+		}
+
+		function renderLines(ops) {
+			return ops.map((op) => {
+				const cls = op[0] === "-" ? "del" : op[0] === "+" ? "ins" : "";
+				const t = op[0] === "=" ? op[2].text : op[1].text;
+				const body = cls ? `<${cls}>${Lab.escape(t)}</${cls}>` : Lab.escape(t);
+				return `<div class="${cls}" data-sign="${op[0] === "=" ? " " : op[0]}">${body}</div>`;
+			}).join("");
+		}
+
+		let timer;
+		function schedule() { clearTimeout(timer); timer = setTimeout(update, 150); }
+
+		function update() {
+			const out = $("out");
+			const ta = $("a").value.replace(/\r\n?/g, "\n"), tb = $("b").value.replace(/\r\n?/g, "\n");
+			out.className = "diff" + (mode === "line" ? " lines" : "");
+			if (!ta.trim() && !tb.trim()) {
+				out.innerHTML = '<span class="empty">Paste text in both boxes to see the differences.</span>';
+				["added", "removed", "same"].forEach((k) => ($(k).textContent = 0));
+				return Lab.status($("status"), "");
+			}
+			const icase = $("icase").checked;
+			const ops = diff(tokenize(ta, mode === "line", icase), tokenize(tb, mode === "line", icase));
+			if (!ops) {
+				out.innerHTML = '<span class="empty">These texts are too different or too long to compare here.</span>';
+				return Lab.status($("status"), mode === "word" ? "Try Lines mode, or compare a shorter section." : "Try comparing a shorter section.", "error");
+			}
+			let add = 0, rem = 0, same = 0;
+			ops.forEach((op) => {
+				const n = mode === "line" ? countWords(op[op[0] === "=" ? 2 : 1].text) : 1;
+				if (op[0] === "+") add += n; else if (op[0] === "-") rem += n; else same += n;
+			});
+			$("added").textContent = add.toLocaleString();
+			$("removed").textContent = rem.toLocaleString();
+			$("same").textContent = same.toLocaleString();
+			out.innerHTML = mode === "line" ? renderLines(ops) : renderWords(ops);
+			Lab.status($("status"), add || rem ? "" : "No differences.", add || rem ? "" : "ok");
+		}
+
+		$("mode").addEventListener("click", (e) => {
+			const b = e.target.closest("button");
+			if (!b) return;
+			$("mode").querySelectorAll("button").forEach((x) => x.classList.toggle("is-active", x === b));
+			mode = b.dataset.v;
+			update();
+		});
+		$("swap").addEventListener("click", () => {
+			const t = $("a").value;
+			$("a").value = $("b").value;
+			$("b").value = t;
+			update();
+		});
+		$("a").addEventListener("input", schedule);
+		$("b").addEventListener("input", schedule);
+		$("icase").addEventListener("change", update);
+		update();
+	</script>
+</body>
+
+</html>

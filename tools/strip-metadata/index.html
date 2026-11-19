@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Remove Photo Metadata | Lab</title>
+	<meta name="description" content="See the EXIF data in your photos, including GPS location, and save clean copies without it. Runs in your browser, nothing is uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.file-item {
+			align-items: flex-start;
+		}
+
+		.found {
+			margin: 0.35rem 0 0;
+			padding: 0;
+			list-style: none;
+			font-size: 0.8rem;
+			color: var(--ink-2);
+		}
+
+		.found li {
+			overflow-wrap: anywhere;
+		}
+
+		.found b {
+			font-weight: 500;
+			color: var(--muted);
+		}
+
+		.gps {
+			color: var(--oxblood);
+			font-weight: 600;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Image</div>
+			<h1>Remove Photo Metadata</h1>
+			<p>Photos from phones often carry the camera model, the time they were taken and the exact GPS location.
+				See what is in yours, then save clean copies before you post or share them.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="panel">
+			<label class="field" style="margin-bottom:.4rem">JPG / WebP quality: <span id="qualityVal">92</span>%
+				<input type="range" id="quality" min="50" max="100" value="92">
+			</label>
+			<span class="hint">Clean copies are re-encoded, so JPG and WebP files lose a little quality. PNG stays
+				lossless. The image is turned upright, so the orientation tag is no longer needed.</span>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-image"></i></div>
+			<strong>Drop photos here</strong>
+			<span>JPG, PNG, WebP. Click to choose</span>
+		</div>
+
+		<ul class="file-list" id="list"></ul>
+
+		<div class="btn-row">
+			<button class="btn" id="all" disabled><i class="fa-solid fa-download"></i> Download all</button>
+			<button class="btn ghost" id="clear" disabled>Clear</button>
+			<span class="status" id="status"></span>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Remove Photo Metadata");
+
+		const $ = (id) => document.getElementById(id);
+		const items = []; // { file, info, out, outType, url, error }
+		const EXT = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+		/* ---------- Metadata readers ---------- */
+
+		function ascii(view, off, len) {
+			let s = "";
+			for (let i = 0; i < len && off + i < view.byteLength; i++) {
+				const c = view.getUint8(off + i);
+				if (c === 0) break;
+				s += String.fromCharCode(c);
+			}
+			return s.trim();
+		}
+
+		// Parse a TIFF/EXIF block starting at `tiff` (offset of the byte-order mark).
+		function parseTiff(view, tiff) {
+			const le = view.getUint16(tiff) === 0x4949;
+			const u16 = (o) => view.getUint16(o, le);
+			const u32 = (o) => view.getUint32(o, le);
+			const SIZE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
+
+			function readIfd(start) {
+				const tags = {};
+				if (start <= 0 || tiff + start + 2 > view.byteLength) return tags;
+				const n = u16(tiff + start);
+				for (let i = 0; i < n; i++) {
+					const e = tiff + start + 2 + i * 12;
+					if (e + 12 > view.byteLength) break;
+					const tag = u16(e), type = u16(e + 2), count = u32(e + 4);
+					const bytes = (SIZE[type] || 1) * count;
+					const valOff = bytes > 4 ? tiff + u32(e + 8) : e + 8;
+					if (valOff + bytes > view.byteLength) continue;
+					let val;
+					if (type === 2) val = ascii(view, valOff, count);
+					else if (type === 3) val = count === 1 ? u16(valOff) : null;
+					else if (type === 4) val = count === 1 ? u32(valOff) : null;
+					else if (type === 5) {
+						val = [];
+						for (let k = 0; k < count; k++) {
+							const den = u32(valOff + k * 8 + 4);
+							val.push(den ? u32(valOff + k * 8) / den : 0);
+						}
+					} else val = true;
+					tags[tag] = val;
+				}
+				return tags;
+			}
+
+			const ifd0 = readIfd(u32(tiff + 4));
+			const exif = ifd0[0x8769] ? readIfd(ifd0[0x8769]) : {};
+			const gpsIfd = ifd0[0x8825] ? readIfd(ifd0[0x8825]) : null;
+			const out = {
+				make: ifd0[0x010f] || "",
+				model: ifd0[0x0110] || "",
+				software: ifd0[0x0131] || "",
+				date: exif[0x9003] || ifd0[0x0132] || "",
+				orientation: ifd0[0x0112] || null,
+				gps: null,
+				hasGpsBlock: !!gpsIfd
+			};
+			if (gpsIfd && Array.isArray(gpsIfd[2]) && Array.isArray(gpsIfd[4])) {
+				const dms = (a) => a[0] + (a[1] || 0) / 60 + (a[2] || 0) / 3600;
+				let lat = dms(gpsIfd[2]), lon = dms(gpsIfd[4]);
+				if (String(gpsIfd[1]).toUpperCase() === "S") lat = -lat;
+				if (String(gpsIfd[3]).toUpperCase() === "W") lon = -lon;
+				if (lat || lon) out.gps = { lat, lon };
+			}
+			return out;
+		}
+
+		function readJpeg(view) {
+			const info = { exif: null, extras: [] };
+			let o = 2;
+			while (o + 4 <= view.byteLength) {
+				if (view.getUint8(o) !== 0xff) break;
+				const marker = view.getUint8(o + 1);
+				if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7) || marker === 0x01) { o += 2; continue; }
+				if (marker === 0xda || marker === 0xd9) break; // image data starts
+				const len = view.getUint16(o + 2);
+				const body = o + 4;
+				if (marker === 0xe1) {
+					const head = ascii(view, body, 6);
+					if (head === "Exif") {
+						try { info.exif = parseTiff(view, body + 6); } catch (e) { info.extras.push("EXIF (unreadable)"); }
+					} else if (ascii(view, body, 28).startsWith("http://ns.adobe.com/xap")) info.extras.push("XMP");
+				} else if (marker === 0xe2 && ascii(view, body, 11) === "ICC_PROFILE") info.extras.push("Colour profile");
+				else if (marker === 0xed) info.extras.push("IPTC / Photoshop");
+				else if (marker === 0xfe) info.extras.push("Comment");
+				o += 2 + len;
+			}
+			return info;
+		}
+
+		function readPng(view) {
+			const info = { exif: null, extras: [] };
+			let o = 8;
+			while (o + 8 <= view.byteLength) {
+				const len = view.getUint32(o);
+				const type = ascii(view, o + 4, 4);
+				if (type === "eXIf") {
+					try { info.exif = parseTiff(view, o + 8); } catch (e) { info.extras.push("EXIF (unreadable)"); }
+				} else if (type === "tEXt" || type === "iTXt" || type === "zTXt") info.extras.push("Text (" + ascii(view, o + 8, 40) + ")");
+				else if (type === "iCCP") info.extras.push("Colour profile");
+				else if (type === "tIME") info.extras.push("Modified time");
+				if (type === "IEND") break;
+				o += 12 + len;
+			}
+			return info;
+		}
+
+		function readWebp(view) {
+			const info = { exif: null, extras: [] };
+			if (ascii(view, 0, 4) !== "RIFF" || ascii(view, 8, 4) !== "WEBP") return info;
+			let o = 12;
+			while (o + 8 <= view.byteLength) {
+				const type = ascii(view, o, 4);
+				const len = view.getUint32(o + 4, true);
+				if (type === "EXIF") {
+					let t = o + 8;
+					if (ascii(view, t, 4) === "Exif") t += 6;
+					try { info.exif = parseTiff(view, t); } catch (e) { info.extras.push("EXIF (unreadable)"); }
+				} else if (type === "XMP ") info.extras.push("XMP");
+				else if (type === "ICCP") info.extras.push("Colour profile");
+				o += 8 + len + (len % 2);
+			}
+			return info;
+		}
+
+		function readMeta(buf, type) {
+			const view = new DataView(buf);
+			try {
+				if (view.getUint16(0) === 0xffd8) return readJpeg(view);
+				if (view.getUint32(0) === 0x89504e47) return readPng(view);
+				if (ascii(view, 0, 4) === "RIFF") return readWebp(view);
+			} catch (e) { }
+			return { exif: null, extras: [] };
+		}
+
+		/* ---------- Clean copy ---------- */
+
+		async function decode(file) {
+			try {
+				return await createImageBitmap(file, { imageOrientation: "from-image" });
+			} catch (e) {
+				return await createImageBitmap(file);
+			}
+		}
+
+		async function clean(it) {
+			const bmp = await decode(it.file);
+			const c = document.createElement("canvas");
+			c.width = bmp.width;
+			c.height = bmp.height;
+			const ctx = c.getContext("2d");
+			let type = EXT[it.file.type] ? it.file.type : "image/png";
+			if (type === "image/jpeg") {
+				ctx.fillStyle = "#fff";
+				ctx.fillRect(0, 0, c.width, c.height);
+			}
+			ctx.drawImage(bmp, 0, 0);
+			if (bmp.close) bmp.close();
+			const q = +$("quality").value / 100;
+			let blob = await new Promise((r) => c.toBlob(r, type, q));
+			if (!blob) throw new Error("Could not encode");
+			// Some browsers (Safari) cannot write WebP and quietly return PNG.
+			it.note = blob.type !== type ? "Saved as " + (EXT[blob.type] || "png").toUpperCase() + " (this browser cannot write " + EXT[type].toUpperCase() + ")" : "";
+			if (it.url) URL.revokeObjectURL(it.url);
+			Object.assign(it, { out: blob, outType: blob.type, url: URL.createObjectURL(blob), w: c.width, h: c.height, error: null });
+		}
+
+		/* ---------- UI ---------- */
+
+		Lab.dropzone($("drop"), {
+			accept: "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp",
+			onFiles: async (picked) => {
+				for (const file of picked) {
+					const it = { file };
+					items.push(it);
+					try {
+						it.info = readMeta(await file.arrayBuffer(), file.type);
+						await clean(it);
+					} catch (e) {
+						it.error = "Could not read this image";
+					}
+				}
+				render();
+			}
+		});
+
+		$("quality").addEventListener("input", () => ($("qualityVal").textContent = $("quality").value));
+		$("quality").addEventListener("change", async () => {
+			Lab.status($("status"), "Re-encoding…");
+			for (const it of items) {
+				if (it.error || it.outType === "image/png") continue;
+				try { await clean(it); } catch (e) { it.error = "Could not re-encode"; }
+			}
+			render();
+		});
+
+		function describe(info) {
+			const rows = [];
+			const x = info && info.exif;
+			if (x) {
+				const cam = [x.make, x.model].filter(Boolean).join(" ");
+				if (cam) rows.push(`<b>Camera:</b> ${Lab.escape(cam)}`);
+				if (x.date) rows.push(`<b>Taken:</b> ${Lab.escape(x.date)}`);
+				if (x.software) rows.push(`<b>Software:</b> ${Lab.escape(x.software)}`);
+				if (x.gps) {
+					const lat = x.gps.lat.toFixed(6), lon = x.gps.lon.toFixed(6);
+					rows.push(`<span class="gps">GPS location:</span> ${lat}, ${lon}`);
+				} else if (x.hasGpsBlock) rows.push(`<b>GPS:</b> tag present, no coordinates`);
+				else rows.push(`<b>GPS:</b> none`);
+				if (!cam && !x.date && !x.software) rows.unshift(`<b>EXIF:</b> present`);
+			} else rows.push(`<b>EXIF:</b> none found`);
+			if (info && info.extras.length) rows.push(`<b>Other:</b> ${Lab.escape([...new Set(info.extras)].join(", "))}`);
+			return `<ul class="found">${rows.map((r) => `<li>${r}</li>`).join("")}</ul>`;
+		}
+
+		function outName(it) {
+			return it.file.name.replace(/\.[^.]+$/, "") + "_clean." + (EXT[it.outType] || "png");
+		}
+
+		function render() {
+			$("list").innerHTML = items.map((it, i) => {
+				if (it.error) return `<li class="file-item"><span class="thumb"><i class="fa-solid fa-triangle-exclamation"></i></span>
+					<div class="meta"><div class="name">${Lab.escape(it.file.name)}</div><div class="sub">${it.error}</div></div>
+					<button class="icon-btn" data-act="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button></li>`;
+				return `<li class="file-item">
+					<img class="thumb" src="${it.url}" alt="">
+					<div class="meta">
+						<div class="name">${Lab.escape(it.file.name)}</div>
+						<div class="sub">${it.w}×${it.h} · ${Lab.formatBytes(it.file.size)} → ${Lab.formatBytes(it.out.size)} clean${it.note ? " · " + Lab.escape(it.note) : ""}</div>
+						${describe(it.info)}
+					</div>
+					<button class="icon-btn" data-act="get" data-i="${i}" aria-label="Download clean copy"><i class="fa-solid fa-download"></i></button>
+					<button class="icon-btn" data-act="del" data-i="${i}" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+				</li>`;
+			}).join("");
+			const ok = items.filter((it) => !it.error);
+			$("all").disabled = ok.length === 0;
+			$("clear").disabled = items.length === 0;
+			const withGps = ok.filter((it) => it.info && it.info.exif && it.info.exif.gps).length;
+			Lab.status($("status"), ok.length ? `${ok.length} clean ${ok.length === 1 ? "copy" : "copies"} ready` + (withGps ? `, ${withGps} had a GPS location` : "") : "", ok.length ? "ok" : "");
+		}
+
+		$("list").addEventListener("click", (e) => {
+			const b = e.target.closest("button[data-act]");
+			if (!b) return;
+			const it = items[+b.dataset.i];
+			if (b.dataset.act === "get") Lab.download(it.out, outName(it));
+			if (b.dataset.act === "del") {
+				if (it.url) URL.revokeObjectURL(it.url);
+				items.splice(+b.dataset.i, 1);
+				render();
+			}
+		});
+
+		$("all").addEventListener("click", async () => {
+			for (const it of items.filter((it) => !it.error)) {
+				Lab.download(it.out, outName(it));
+				await new Promise((r) => setTimeout(r, 250));
+			}
+		});
+
+		$("clear").addEventListener("click", () => {
+			items.forEach((it) => it.url && URL.revokeObjectURL(it.url));
+			items.length = 0;
+			render();
+		});
+	</script>
+</body>
+
+</html>

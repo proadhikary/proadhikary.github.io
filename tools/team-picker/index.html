@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Random Picker &amp; Groups | Lab</title>
+	<meta name="description" content="Pick a random name, draw several without repeats, split a class into groups, or shuffle a presentation order. Runs in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		#names {
+			min-height: 260px;
+		}
+
+		.winner {
+			font-size: clamp(1.6rem, 7vw, 2.6rem);
+			font-weight: 500;
+			color: var(--ink);
+			text-align: center;
+			padding: 1.25rem 0.5rem;
+			min-height: 4.5rem;
+			overflow-wrap: anywhere;
+			font-variant-numeric: tabular-nums;
+		}
+
+		.winner.rolling {
+			color: var(--muted);
+		}
+
+		.groups {
+			display: grid;
+			grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+			gap: 0.75rem;
+		}
+
+		.group {
+			border: 1px solid var(--rule);
+			border-radius: 8px;
+			padding: 0.75rem 0.9rem;
+		}
+
+		.group h3 {
+			font-size: 0.85rem;
+			font-weight: 600;
+			color: var(--muted);
+			margin: 0 0 0.4rem;
+		}
+
+		.group ol,
+		.order {
+			margin: 0;
+			padding-left: 1.4rem;
+		}
+
+		.group li,
+		.order li {
+			overflow-wrap: anywhere;
+		}
+
+		.order {
+			columns: 2 200px;
+		}
+
+		.opt[hidden] {
+			display: none;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Text</div>
+			<h1>Random Picker &amp; Groups</h1>
+			<p>Pick who goes first, draw names for a raffle, split a class into project groups, or shuffle the order
+				of presentations. Paste one name per line.</p>
+		</div>
+
+		<div class="grid-2">
+			<div class="panel">
+				<p class="panel-title">Names <span class="hint" id="count">(0)</span></p>
+				<textarea id="names" placeholder="One name per line"></textarea>
+				<div class="btn-row" style="margin-top:.6rem">
+					<label class="hint" style="display:flex;gap:.4rem;align-items:center"><input type="checkbox" id="dedupe" checked> Ignore duplicates</label>
+					<button class="btn ghost" id="clearNames" style="margin-left:auto">Clear list</button>
+				</div>
+			</div>
+
+			<div class="panel">
+				<p class="panel-title">What to do</p>
+				<div class="segmented" id="mode" style="margin-bottom:1rem">
+					<button class="is-active" data-mode="one">Pick one</button>
+					<button data-mode="many">Pick several</button>
+					<button data-mode="groups">Groups</button>
+					<button data-mode="order">Shuffle order</button>
+				</div>
+
+				<div class="opt" data-for="one">
+					<label class="hint" style="display:flex;gap:.4rem;align-items:center;margin-bottom:.85rem"><input type="checkbox" id="removePicked"> Remove the picked name from the list</label>
+				</div>
+				<div class="opt" data-for="many" hidden>
+					<label class="field">How many names
+						<input type="number" id="howMany" value="3" min="1" step="1">
+					</label>
+				</div>
+				<div class="opt" data-for="groups" hidden>
+					<label class="field">Split by
+						<select id="splitBy">
+							<option value="count">Number of groups</option>
+							<option value="size">People per group</option>
+						</select>
+					</label>
+					<label class="field"><span id="groupLabel">Number of groups</span>
+						<input type="number" id="groupN" value="4" min="1" step="1">
+					</label>
+					<p class="hint" style="margin:-.4rem 0 .85rem">Groups are kept as even as possible, so with “people
+						per group” some groups may have one fewer.</p>
+				</div>
+				<div class="opt" data-for="order" hidden>
+					<p class="hint" style="margin:0 0 .85rem">Puts every name in a random order, for example for
+						presentations or turns.</p>
+				</div>
+
+				<div class="btn-row">
+					<button class="btn" id="go"><i class="fa-solid fa-shuffle"></i> <span id="goLabel">Pick</span></button>
+					<span class="status" id="status"></span>
+				</div>
+			</div>
+		</div>
+
+		<div class="panel" id="resultPanel" hidden>
+			<div class="btn-row" style="justify-content:space-between;margin-bottom:.6rem">
+				<p class="panel-title" style="margin:0">Result</p>
+				<button class="btn ghost" id="copy"><i class="fa-regular fa-copy"></i> Copy</button>
+			</div>
+			<div id="result"></div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Random Picker");
+
+		const $ = (id) => document.getElementById(id);
+		const KEY = "lab-team-picker";
+		let mode = "one";
+		let resultText = "";
+		let rolling = false;
+
+		// Unbiased random integer in [0, n) using rejection sampling.
+		function randInt(n) {
+			const max = Math.floor(0x100000000 / n) * n;
+			const buf = new Uint32Array(1);
+			do crypto.getRandomValues(buf); while (buf[0] >= max);
+			return buf[0] % n;
+		}
+
+		function shuffle(arr) {
+			const a = arr.slice();
+			for (let i = a.length - 1; i > 0; i--) {
+				const j = randInt(i + 1);
+				[a[i], a[j]] = [a[j], a[i]];
+			}
+			return a;
+		}
+
+		function names() {
+			const list = $("names").value.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+			if (!$("dedupe").checked) return list;
+			const seen = new Set();
+			return list.filter((n) => {
+				const k = n.toLowerCase();
+				if (seen.has(k)) return false;
+				seen.add(k);
+				return true;
+			});
+		}
+
+		function save() {
+			try {
+				localStorage.setItem(KEY, JSON.stringify({ names: $("names").value, dedupe: $("dedupe").checked, mode }));
+			} catch (e) { }
+		}
+
+		function refreshCount() {
+			const n = names().length;
+			$("count").textContent = `(${n})`;
+		}
+
+		const LABELS = { one: "Pick one", many: "Pick names", groups: "Make groups", order: "Shuffle" };
+
+		function setMode(m) {
+			mode = m;
+			document.querySelectorAll("#mode button").forEach((x) => x.classList.toggle("is-active", x.dataset.mode === m));
+			document.querySelectorAll(".opt").forEach((o) => (o.hidden = o.dataset.for !== m));
+			$("goLabel").textContent = LABELS[m];
+			Lab.status($("status"), "");
+		}
+
+		function show(html, text) {
+			$("resultPanel").hidden = false;
+			$("result").innerHTML = html;
+			resultText = text;
+		}
+
+		const esc = Lab.escape;
+
+		async function pickOne(list) {
+			const winner = list[randInt(list.length)];
+			$("resultPanel").hidden = false;
+			$("result").innerHTML = '<div class="winner rolling" id="winner" aria-live="polite"></div>';
+			const el = $("winner");
+			const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+			if (!reduce && list.length > 1) {
+				rolling = true;
+				$("go").disabled = true;
+				let delay = 40;
+				let last = -1;
+				while (delay < 260) {
+					let k = randInt(list.length);
+					if (k === last) k = (k + 1) % list.length;
+					last = k;
+					el.textContent = list[k];
+					await new Promise((r) => setTimeout(r, delay));
+					delay *= 1.15;
+				}
+				rolling = false;
+				$("go").disabled = false;
+			}
+			el.classList.remove("rolling");
+			el.textContent = winner;
+			resultText = winner;
+			if ($("removePicked").checked) {
+				const lines = $("names").value.split(/\r?\n/);
+				const idx = lines.findIndex((l) => l.trim() === winner);
+				if (idx >= 0) lines.splice(idx, 1);
+				$("names").value = lines.join("\n");
+				refreshCount();
+				save();
+			}
+		}
+
+		function pickMany(list) {
+			const n = Math.floor(+$("howMany").value);
+			if (!(n >= 1)) return Lab.status($("status"), "Enter how many to pick", "error");
+			if (n > list.length) return Lab.status($("status"), `Only ${list.length} names in the list`, "error");
+			const picked = shuffle(list).slice(0, n);
+			show(`<ol class="order">${picked.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>`, picked.map((p, i) => `${i + 1}. ${p}`).join("\n"));
+		}
+
+		function makeGroups(list) {
+			const n = Math.floor(+$("groupN").value);
+			if (!(n >= 1)) return Lab.status($("status"), "Enter a number of 1 or more", "error");
+			const k = $("splitBy").value === "count" ? Math.min(n, list.length) : Math.ceil(list.length / n);
+			const groups = Array.from({ length: k }, () => []);
+			shuffle(list).forEach((name, i) => groups[i % k].push(name));
+			show(
+				`<div class="groups">${groups.map((g, i) => `<div class="group"><h3>Group ${i + 1} (${g.length})</h3><ol>${g.map((p) => `<li>${esc(p)}</li>`).join("")}</ol></div>`).join("")}</div>`,
+				groups.map((g, i) => `Group ${i + 1}\n` + g.map((p) => "- " + p).join("\n")).join("\n\n")
+			);
+			Lab.status($("status"), `${k} groups of ${Math.floor(list.length / k)}${list.length % k ? "–" + Math.ceil(list.length / k) : ""}`, "ok");
+		}
+
+		function shuffleOrder(list) {
+			const order = shuffle(list);
+			show(`<ol class="order">${order.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>`, order.map((p, i) => `${i + 1}. ${p}`).join("\n"));
+		}
+
+		$("go").addEventListener("click", () => {
+			if (rolling) return;
+			const list = names();
+			Lab.status($("status"), "");
+			if (!list.length) return Lab.status($("status"), "Add some names first", "error");
+			if (mode === "one") pickOne(list);
+			if (mode === "many") pickMany(list);
+			if (mode === "groups") makeGroups(list);
+			if (mode === "order") shuffleOrder(list);
+		});
+
+		$("mode").addEventListener("click", (e) => {
+			const b = e.target.closest("button[data-mode]");
+			if (!b) return;
+			setMode(b.dataset.mode);
+			save();
+		});
+
+		$("splitBy").addEventListener("change", () => {
+			$("groupLabel").textContent = $("splitBy").value === "count" ? "Number of groups" : "People per group";
+		});
+
+		$("copy").addEventListener("click", () => resultText && Lab.copy(resultText, $("copy")));
+
+		$("names").addEventListener("input", () => {
+			refreshCount();
+			save();
+		});
+		$("dedupe").addEventListener("change", () => {
+			refreshCount();
+			save();
+		});
+		$("clearNames").addEventListener("click", () => {
+			$("names").value = "";
+			refreshCount();
+			save();
+		});
+
+		try {
+			const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+			if (saved) {
+				$("names").value = saved.names || "";
+				$("dedupe").checked = saved.dedupe !== false;
+				if (LABELS[saved.mode]) mode = saved.mode;
+			}
+		} catch (e) { }
+		setMode(mode);
+		refreshCount();
+	</script>
+</body>
+
+</html>

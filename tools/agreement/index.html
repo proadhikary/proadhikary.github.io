@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Annotator Agreement | Lab</title>
+	<meta name="description" content="Compute percent agreement, Cohen's kappa and Fleiss' kappa for annotation labels, with a confusion matrix. Runs in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.table-wrap {
+			overflow-x: auto;
+		}
+
+		table.data {
+			border-collapse: collapse;
+			font-size: 0.88rem;
+			font-variant-numeric: tabular-nums;
+		}
+
+		table.data th,
+		table.data td {
+			border: 1px solid var(--rule);
+			padding: 0.4rem 0.65rem;
+			text-align: right;
+			white-space: nowrap;
+		}
+
+		table.data th {
+			background: var(--paper-2);
+			font-weight: 500;
+		}
+
+		table.data th.corner {
+			text-align: left;
+			color: var(--muted);
+			font-size: 0.78rem;
+		}
+
+		table.data td.diag {
+			font-weight: 700;
+			background: var(--accent-soft);
+		}
+
+		.mode-row {
+			margin-bottom: 1rem;
+		}
+
+		#table {
+			min-height: 240px;
+		}
+
+		.list-box {
+			min-height: 240px;
+		}
+
+		.check {
+			display: inline-flex;
+			gap: 0.4rem;
+			align-items: center;
+			font-size: 0.85rem;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Research</div>
+			<h1>Annotator Agreement</h1>
+			<p>Paste the labels from two or more annotators to get percent agreement, Cohen's kappa (two annotators)
+				or Fleiss' kappa (three or more), and a confusion matrix.</p>
+		</div>
+
+		<div class="panel">
+			<div class="btn-row mode-row">
+				<div class="segmented" id="mode">
+					<button type="button" data-mode="table" class="is-active">Paste columns</button>
+					<button type="button" data-mode="lists">Two lists</button>
+				</div>
+			</div>
+
+			<div id="tableMode">
+				<label class="field">One item per line, one column per annotator. Separate columns with tabs (as copied from a spreadsheet), commas or semicolons.
+					<textarea id="table" class="mono" spellcheck="false" placeholder="pos	pos&#10;neg	pos&#10;neu	neu"></textarea>
+				</label>
+				<label class="check"><input type="checkbox" id="header"> First line is a header with annotator names</label>
+			</div>
+
+			<div id="listsMode" hidden>
+				<div class="grid-2">
+					<label class="field">Annotator A (one label per line)
+						<textarea id="listA" class="mono list-box" spellcheck="false"></textarea>
+					</label>
+					<label class="field">Annotator B (one label per line)
+						<textarea id="listB" class="mono list-box" spellcheck="false"></textarea>
+					</label>
+				</div>
+			</div>
+
+			<div class="btn-row" style="margin-top:.85rem">
+				<label class="check"><input type="checkbox" id="ignoreCase"> Ignore case</label>
+				<button type="button" class="btn ghost" id="example"><i class="fa-solid fa-flask"></i> Load example</button>
+				<button type="button" class="btn ghost" id="clear"><i class="fa-solid fa-eraser"></i> Clear</button>
+			</div>
+			<p class="status" id="status"></p>
+		</div>
+
+		<div id="results" hidden>
+			<div class="stats" style="margin-bottom:1rem" id="stats"></div>
+
+			<div class="panel" id="matrixPanel">
+				<p class="panel-title" id="matrixTitle">Confusion matrix</p>
+				<div class="table-wrap" id="matrix"></div>
+				<p class="hint" id="matrixHint" style="margin-bottom:0"></p>
+			</div>
+
+			<div class="panel">
+				<p class="panel-title">How to read kappa (Landis &amp; Koch, 1977)</p>
+				<div class="table-wrap">
+					<table class="data">
+						<tr><th class="corner">Kappa</th><th class="corner">Agreement</th></tr>
+						<tr><td>below 0</td><td style="text-align:left">Poor</td></tr>
+						<tr><td>0.00 to 0.20</td><td style="text-align:left">Slight</td></tr>
+						<tr><td>0.21 to 0.40</td><td style="text-align:left">Fair</td></tr>
+						<tr><td>0.41 to 0.60</td><td style="text-align:left">Moderate</td></tr>
+						<tr><td>0.61 to 0.80</td><td style="text-align:left">Substantial</td></tr>
+						<tr><td>0.81 to 1.00</td><td style="text-align:left">Almost perfect</td></tr>
+					</table>
+				</div>
+				<p class="hint" style="margin-bottom:0">These bands are a rough convention, not a test. Kappa can be low even when raw agreement is high if one label dominates.</p>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Annotator Agreement");
+
+		const $ = (id) => document.getElementById(id);
+		let mode = "table";
+
+		const fmt = (x, d = 3) => (Number.isFinite(x) ? x.toFixed(d) : "n/a");
+		const pct = (x) => (Number.isFinite(x) ? (x * 100).toFixed(1) + "%" : "n/a");
+
+		function landisKoch(k) {
+			if (!Number.isFinite(k)) return "Undefined";
+			if (k < 0) return "Poor";
+			if (k <= 0.2) return "Slight";
+			if (k <= 0.4) return "Fair";
+			if (k <= 0.6) return "Moderate";
+			if (k <= 0.8) return "Substantial";
+			return "Almost perfect";
+		}
+
+		function splitRow(line) {
+			let parts;
+			if (line.includes("\t")) parts = line.split("\t");
+			else if (line.includes(";")) parts = line.split(";");
+			else parts = line.split(",");
+			return parts.map((s) => s.trim());
+		}
+
+		const norm = (s) => ($("ignoreCase").checked ? s.toLowerCase() : s);
+
+		// Returns { names: [...], rows: [[label per annotator], ...] } or throws Error.
+		function readInput() {
+			if (mode === "lists") {
+				const a = $("listA").value.split(/\r?\n/).map((s) => s.trim());
+				const b = $("listB").value.split(/\r?\n/).map((s) => s.trim());
+				while (a.length && !a[a.length - 1]) a.pop();
+				while (b.length && !b[b.length - 1]) b.pop();
+				if (!a.length && !b.length) return null;
+				if (a.length !== b.length) {
+					throw new Error(`The lists have different lengths: A has ${a.length} labels, B has ${b.length}. Each line should be the same item.`);
+				}
+				const rows = a.map((x, i) => [x, b[i]]);
+				rows.forEach((r, i) => {
+					if (!r[0] || !r[1]) throw new Error(`Line ${i + 1} is empty in one of the lists.`);
+				});
+				return { names: ["A", "B"], rows: rows.map((r) => r.map(norm)) };
+			}
+
+			const lines = $("table").value.split(/\r?\n/).filter((l) => l.trim());
+			if (!lines.length) return null;
+			let names = null;
+			if ($("header").checked) names = splitRow(lines.shift());
+			if (!lines.length) return null;
+			const rows = lines.map(splitRow);
+			const width = names ? names.length : rows[0].length;
+			if (width < 2) throw new Error("Need at least two columns (one per annotator). Check the separator.");
+			rows.forEach((r, i) => {
+				const lineNo = i + 1 + (names ? 1 : 0);
+				if (r.length !== width) {
+					throw new Error(`Line ${lineNo} has ${r.length} column${r.length === 1 ? "" : "s"}, expected ${width}. Every item needs a label from every annotator.`);
+				}
+				if (r.some((c) => !c)) throw new Error(`Line ${lineNo} has an empty label.`);
+			});
+			if (!names) names = rows[0].map((_, i) => "Annotator " + String.fromCharCode(65 + (i % 26)) + (i >= 26 ? Math.floor(i / 26) : ""));
+			return { names, rows: rows.map((r) => r.map(norm)) };
+		}
+
+		function categoriesOf(rows) {
+			const set = new Set();
+			rows.forEach((r) => r.forEach((c) => set.add(c)));
+			return [...set].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+		}
+
+		function cohen(rows, cats) {
+			const idx = new Map(cats.map((c, i) => [c, i]));
+			const k = cats.length;
+			const m = Array.from({ length: k }, () => new Array(k).fill(0));
+			rows.forEach(([a, b]) => m[idx.get(a)][idx.get(b)]++);
+			const n = rows.length;
+			let agree = 0;
+			for (let i = 0; i < k; i++) agree += m[i][i];
+			const po = agree / n;
+			let pe = 0;
+			for (let i = 0; i < k; i++) {
+				const rowSum = m[i].reduce((s, x) => s + x, 0);
+				const colSum = m.reduce((s, r) => s + r[i], 0);
+				pe += (rowSum / n) * (colSum / n);
+			}
+			const kappa = pe === 1 ? NaN : (po - pe) / (1 - pe);
+			return { m, po, pe, kappa, n, agree };
+		}
+
+		function fleiss(rows, cats) {
+			const idx = new Map(cats.map((c, i) => [c, i]));
+			const N = rows.length;
+			const r = rows[0].length;
+			const k = cats.length;
+			const counts = rows.map((row) => {
+				const c = new Array(k).fill(0);
+				row.forEach((l) => c[idx.get(l)]++);
+				return c;
+			});
+			let Pbar = 0;
+			const pj = new Array(k).fill(0);
+			let unanimous = 0;
+			counts.forEach((c) => {
+				let sq = 0;
+				c.forEach((x, j) => {
+					sq += x * x;
+					pj[j] += x;
+				});
+				Pbar += (sq - r) / (r * (r - 1));
+				if (c.some((x) => x === r)) unanimous++;
+			});
+			Pbar /= N;
+			for (let j = 0; j < k; j++) pj[j] /= N * r;
+			const Pe = pj.reduce((s, p) => s + p * p, 0);
+			const kappa = Pe === 1 ? NaN : (Pbar - Pe) / (1 - Pe);
+
+			// Pairwise Cohen's kappa for each pair of annotators.
+			const pairs = [];
+			for (let a = 0; a < r; a++) {
+				for (let b = a + 1; b < r; b++) {
+					const c = cohen(rows.map((row) => [row[a], row[b]]), cats);
+					pairs.push({ a, b, po: c.po, kappa: c.kappa });
+				}
+			}
+			return { N, r, k, Pbar, Pe, kappa, pj, unanimous, pairs, counts };
+		}
+
+		function stat(value, label) {
+			return `<div class="stat"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`;
+		}
+
+		function update() {
+			let data;
+			try {
+				data = readInput();
+			} catch (e) {
+				Lab.status($("status"), e.message, "error");
+				$("results").hidden = true;
+				return;
+			}
+			if (!data) {
+				Lab.status($("status"), "");
+				$("results").hidden = true;
+				return;
+			}
+			const { names, rows } = data;
+			const cats = categoriesOf(rows);
+			$("results").hidden = false;
+
+			if (names.length === 2) {
+				const c = cohen(rows, cats);
+				Lab.status($("status"), `${c.n} items, 2 annotators, ${cats.length} label${cats.length === 1 ? "" : "s"}.`, "ok");
+				$("stats").innerHTML =
+					stat(pct(c.po), "Percent agreement") +
+					stat(fmt(c.kappa), "Cohen's kappa") +
+					stat(landisKoch(c.kappa), "Interpretation") +
+					stat(c.agree + " / " + c.n, "Items agreed") +
+					stat(pct(c.pe), "Chance agreement");
+
+				$("matrixTitle").textContent = "Confusion matrix (rows: " + names[0] + ", columns: " + names[1] + ")";
+				let h = '<table class="data"><tr><th class="corner">' + Lab.escape(names[0]) + " \\ " + Lab.escape(names[1]) + "</th>";
+				cats.forEach((cat) => (h += "<th>" + Lab.escape(cat) + "</th>"));
+				h += "<th>Total</th></tr>";
+				c.m.forEach((row, i) => {
+					h += "<tr><th>" + Lab.escape(cats[i]) + "</th>";
+					row.forEach((x, j) => (h += `<td${i === j ? ' class="diag"' : ""}>${x}</td>`));
+					h += "<td>" + row.reduce((s, x) => s + x, 0) + "</td></tr>";
+				});
+				h += "<tr><th>Total</th>";
+				cats.forEach((_, j) => (h += "<td>" + c.m.reduce((s, r) => s + r[j], 0) + "</td>"));
+				h += "<td>" + c.n + "</td></tr></table>";
+				$("matrix").innerHTML = h;
+				$("matrixHint").textContent = "Bold cells on the diagonal are items where both annotators gave the same label." +
+					(Number.isFinite(c.kappa) ? "" : " Kappa is undefined because both annotators used a single label for everything.");
+			} else {
+				const f = fleiss(rows, cats);
+				const meanPair = f.pairs.reduce((s, p) => s + p.po, 0) / f.pairs.length;
+				Lab.status($("status"), `${f.N} items, ${f.r} annotators, ${cats.length} label${cats.length === 1 ? "" : "s"}.`, "ok");
+				$("stats").innerHTML =
+					stat(fmt(f.kappa), "Fleiss' kappa") +
+					stat(landisKoch(f.kappa), "Interpretation") +
+					stat(pct(f.Pbar), "Observed agreement") +
+					stat(pct(meanPair), "Mean pairwise agreement") +
+					stat(f.unanimous + " / " + f.N, "Unanimous items") +
+					stat(pct(f.Pe), "Chance agreement");
+
+				$("matrixTitle").textContent = "Pairwise agreement and label use";
+				let h = '<table class="data"><tr><th class="corner">Pair</th><th>Agreement</th><th>Cohen\'s kappa</th><th class="corner">Interpretation</th></tr>';
+				f.pairs.forEach((p) => {
+					h += `<tr><th style="text-align:left">${Lab.escape(names[p.a])} and ${Lab.escape(names[p.b])}</th><td>${pct(p.po)}</td><td>${fmt(p.kappa)}</td><td style="text-align:left">${landisKoch(p.kappa)}</td></tr>`;
+				});
+				h += "</table><br>";
+				h += '<table class="data"><tr><th class="corner">Label</th><th>Times used</th><th>Share</th></tr>';
+				cats.forEach((cat, j) => {
+					h += `<tr><th style="text-align:left">${Lab.escape(cat)}</th><td>${Math.round(f.pj[j] * f.N * f.r)}</td><td>${pct(f.pj[j])}</td></tr>`;
+				});
+				h += "</table>";
+				$("matrix").innerHTML = h;
+				$("matrixHint").textContent = "Fleiss' kappa assumes every item was labelled by the same number of annotators. A confusion matrix is only shown for two annotators.";
+			}
+		}
+
+		document.querySelectorAll("#mode button").forEach((b) =>
+			b.addEventListener("click", () => {
+				mode = b.dataset.mode;
+				document.querySelectorAll("#mode button").forEach((x) => x.classList.toggle("is-active", x === b));
+				$("tableMode").hidden = mode !== "table";
+				$("listsMode").hidden = mode !== "lists";
+				update();
+			})
+		);
+
+		const EX_A = "pos pos neg neu pos neg neg pos neu pos neg neu pos pos neg neu neg pos pos neu".split(" ");
+		const EX_B = "pos neu neg neu pos neg pos pos neu pos neg neg pos pos neg pos neg pos neu neu".split(" ");
+		const EX_C = "pos pos neg neu neu neg neg pos neu pos neg neu pos neg neg neu neg pos pos neu".split(" ");
+
+		$("example").addEventListener("click", () => {
+			if (mode === "lists") {
+				$("listA").value = EX_A.join("\n");
+				$("listB").value = EX_B.join("\n");
+			} else {
+				$("header").checked = true;
+				$("table").value = "Ann1\tAnn2\tAnn3\n" + EX_A.map((a, i) => [a, EX_B[i], EX_C[i]].join("\t")).join("\n");
+			}
+			update();
+		});
+		$("clear").addEventListener("click", () => {
+			$("table").value = $("listA").value = $("listB").value = "";
+			update();
+		});
+		["table", "listA", "listB"].forEach((id) => $(id).addEventListener("input", update));
+		["header", "ignoreCase"].forEach((id) => $(id).addEventListener("change", update));
+		update();
+	</script>
+</body>
+
+</html>

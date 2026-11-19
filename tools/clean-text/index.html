@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Clean Pasted Text | Lab</title>
+	<meta name="description" content="Fix text copied out of a PDF: join broken lines, repair hyphenation, collapse spaces, fix quotes and change case. Runs in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.opts {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem 1.25rem;
+			margin-bottom: 1rem;
+		}
+
+		.opts label {
+			display: flex;
+			gap: 0.4rem;
+			align-items: center;
+			font-size: 0.88rem;
+			cursor: pointer;
+		}
+
+		.opts input[type="checkbox"] {
+			accent-color: var(--ink);
+		}
+
+		.opt-row {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem 1rem;
+			align-items: center;
+			margin-bottom: 0.75rem;
+		}
+
+		.opt-row .hint {
+			min-width: 4rem;
+		}
+
+		.out-head {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 0.85rem;
+		}
+
+		.out-head .panel-title {
+			margin: 0;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Text</div>
+			<h1>Clean Pasted Text</h1>
+			<p>Paste text copied out of a PDF. Broken lines are joined back into paragraphs, split words are put
+				back together and stray spaces are removed.</p>
+		</div>
+
+		<div class="panel">
+			<div class="opts">
+				<label><input type="checkbox" id="join" checked> Join broken lines</label>
+				<label><input type="checkbox" id="hyphen" checked> Fix split words (algo-&#8203;rithm)</label>
+				<label><input type="checkbox" id="spaces" checked> Collapse extra spaces</label>
+				<label><input type="checkbox" id="liga" checked> Expand ligatures (&#xFB01;, &#xFB02;)</label>
+				<label><input type="checkbox" id="refs"> Remove reference markers like [12]</label>
+			</div>
+			<div class="opt-row">
+				<span class="hint">Quotes</span>
+				<div class="segmented" id="quotes">
+					<button class="is-active" data-v="keep">Leave as is</button>
+					<button data-v="straight">Straight " '</button>
+					<button data-v="curly">Curly &ldquo; &rsquo;</button>
+				</div>
+			</div>
+			<div class="opt-row" style="margin-bottom:0">
+				<span class="hint">Case</span>
+				<div class="segmented" id="case">
+					<button class="is-active" data-v="keep">As is</button>
+					<button data-v="sentence">Sentence case</button>
+					<button data-v="title">Title Case</button>
+					<button data-v="lower">lower</button>
+					<button data-v="upper">UPPER</button>
+				</div>
+			</div>
+		</div>
+
+		<div class="grid-2">
+			<div class="panel">
+				<div class="out-head">
+					<p class="panel-title">Pasted text</p>
+					<button class="btn ghost" id="clear"><i class="fa-solid fa-eraser"></i> Clear</button>
+				</div>
+				<textarea id="input" placeholder="Paste text from a PDF here…" spellcheck="false"></textarea>
+			</div>
+			<div class="panel">
+				<div class="out-head">
+					<p class="panel-title">Cleaned text</p>
+					<div class="btn-row">
+						<button class="btn ghost" id="copy"><i class="fa-regular fa-copy"></i> Copy</button>
+						<button class="btn ghost" id="download"><i class="fa-solid fa-download"></i> .txt</button>
+					</div>
+				</div>
+				<textarea id="output" readonly spellcheck="false"></textarea>
+				<p class="status" id="status"></p>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Clean Pasted Text");
+
+		const $ = (id) => document.getElementById(id);
+		const state = { quotes: "keep", case: "keep" };
+
+		const SMALL = new Set("a an and as at but by en for from if in into nor of on or per so the to up via vs with yet".split(" "));
+
+		function toSentence(t) {
+			t = t.toLowerCase();
+			t = t.replace(/(^|[.!?]["'”’)\]]*\s+|\n\s*)(\p{Ll})/gu, (m, a, b) => a + b.toUpperCase());
+			return t.replace(/\bi\b/g, "I");
+		}
+
+		function toTitle(t) {
+			return t.split("\n").map((line) => {
+				const parts = line.toLowerCase().split(/(\s+)/);
+				const idx = parts.map((p, i) => (/\S/.test(p) ? i : -1)).filter((i) => i >= 0);
+				const first = idx[0], last = idx[idx.length - 1];
+				return parts.map((p, i) => {
+					if (!/\S/.test(p)) return p;
+					const bare = p.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+					const afterColon = i > first && /[:.!?]$/.test(parts[i - 2] || "");
+					if (i !== first && i !== last && !afterColon && SMALL.has(bare)) return p;
+					return p.replace(/\p{L}/u, (c) => c.toUpperCase()).replace(/-(\p{Ll})/gu, (m, c) => "-" + c.toUpperCase());
+				}).join("");
+			}).join("\n");
+		}
+
+		function clean(t) {
+			const o = {
+				join: $("join").checked, hyphen: $("hyphen").checked, spaces: $("spaces").checked,
+				liga: $("liga").checked, refs: $("refs").checked
+			};
+			t = t.replace(/\r\n?/g, "\n").replace(/ /g, " ").replace(/­/g, "");
+			if (o.liga) {
+				t = t.replace(/ﬀ/g, "ff").replace(/ﬁ/g, "fi").replace(/ﬂ/g, "fl")
+					.replace(/ﬃ/g, "ffi").replace(/ﬄ/g, "ffl").replace(/ﬅ|ﬆ/g, "st");
+			}
+			if (o.hyphen) t = t.replace(/(\p{L})[-‐]\s*\n\s*(\p{Ll})/gu, "$1$2");
+			if (o.join) {
+				t = t.split(/\n[ \t]*\n\s*/).map((p) => p.replace(/[ \t]*\n[ \t]*/g, " ")).join("\n\n");
+			}
+			if (o.refs) {
+				t = t.replace(/[ \t]?\[\d+(?:\s*[,–\-]\s*\d+)*\]/g, "");
+			}
+			if (o.spaces) {
+				t = t.replace(/[ \t]+/g, " ").replace(/ +([,.;:!?)])/g, "$1").replace(/^ +| +$/gm, "").replace(/\n{3,}/g, "\n\n");
+			}
+			if (state.quotes === "straight") {
+				t = t.replace(/[“”„‟″]/g, '"').replace(/[‘’‚‛′]/g, "'");
+			} else if (state.quotes === "curly") {
+				t = t.replace(/(^|[\s(\[{—–-])"/g, "$1“").replace(/"/g, "”")
+					.replace(/(^|[\s(\[{—–-])'/g, "$1‘").replace(/'/g, "’");
+			}
+			if (state.case === "lower") t = t.toLowerCase();
+			else if (state.case === "upper") t = t.toUpperCase();
+			else if (state.case === "sentence") t = toSentence(t);
+			else if (state.case === "title") t = toTitle(t);
+			return t.trim();
+		}
+
+		function update() {
+			const inp = $("input").value;
+			const out = clean(inp);
+			$("output").value = out;
+			if (!inp.trim()) return Lab.status($("status"), "");
+			const lines = (s) => (s ? s.split("\n").length : 0);
+			Lab.status($("status"), `${lines(inp.trim())} lines in, ${lines(out)} lines out`);
+		}
+
+		function segmented(id, key) {
+			$(id).addEventListener("click", (e) => {
+				const b = e.target.closest("button");
+				if (!b) return;
+				$(id).querySelectorAll("button").forEach((x) => x.classList.toggle("is-active", x === b));
+				state[key] = b.dataset.v;
+				update();
+			});
+		}
+		segmented("quotes", "quotes");
+		segmented("case", "case");
+
+		$("input").addEventListener("input", update);
+		document.querySelectorAll(".opts input").forEach((el) => el.addEventListener("change", update));
+		$("copy").addEventListener("click", (e) => Lab.copy($("output").value, e.currentTarget));
+		$("download").addEventListener("click", () => Lab.download($("output").value, "cleaned.txt", "text/plain;charset=utf-8"));
+		$("clear").addEventListener("click", () => { $("input").value = ""; update(); $("input").focus(); });
+		update();
+	</script>
+</body>
+
+</html>

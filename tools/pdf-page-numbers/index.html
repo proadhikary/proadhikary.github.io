@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Add Page Numbers to PDF | Lab</title>
+	<meta name="description" content="Add page numbers to a PDF in your browser. Choose position, format, size and start number. Files are never uploaded.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		.check {
+			display: flex;
+			gap: 0.5rem;
+			align-items: center;
+			font-size: 0.88rem;
+			margin-bottom: 0.85rem;
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">PDF</div>
+			<h1>Add Page Numbers to PDF</h1>
+			<p>Number the pages of a thesis draft, a report or a scanned handout. Pick where the numbers go and how
+				they look.</p>
+			<span class="privacy-note"><i class="fa-solid fa-shield-halved"></i> Processed locally, nothing is
+				uploaded</span>
+		</div>
+
+		<div class="dropzone" id="drop">
+			<div class="dropzone-icon"><i class="fa-regular fa-file-pdf"></i></div>
+			<strong>Drop a PDF here</strong>
+			<span>or click to choose a file</span>
+		</div>
+
+		<ul class="file-list" id="list"></ul>
+
+		<div class="panel">
+			<div class="grid-2">
+				<div>
+					<label class="field">Position
+						<select id="pos">
+							<option value="bc">Bottom center</option>
+							<option value="br">Bottom right</option>
+							<option value="bl">Bottom left</option>
+							<option value="tc">Top center</option>
+							<option value="tr">Top right</option>
+							<option value="tl">Top left</option>
+						</select>
+					</label>
+					<label class="field">Format
+						<select id="fmt">
+							<option value="n">1</option>
+							<option value="page">Page 1</option>
+							<option value="of">1 / N</option>
+						</select>
+					</label>
+				</div>
+				<div>
+					<label class="field">Start at
+						<input type="number" id="start" value="1" step="1">
+					</label>
+					<label class="field">Font size (pt)
+						<input type="number" id="size" value="11" min="5" max="48" step="1">
+					</label>
+					<label class="check"><input type="checkbox" id="skipFirst"> Skip the first page (title page)</label>
+				</div>
+			</div>
+			<p class="hint" style="margin:0 0 .85rem">When the first page is skipped, numbering starts on page two with
+				the start number above.</p>
+			<div class="btn-row">
+				<button class="btn" id="go" disabled><i class="fa-solid fa-list-ol"></i> Add numbers &amp; download</button>
+				<button class="btn ghost" id="clear" disabled>Clear</button>
+				<span class="status" id="status"></span>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("PDF Page Numbers");
+
+		const $ = (id) => document.getElementById(id);
+		let current = null; // { file, bytes, pages }
+
+		Lab.dropzone($("drop"), {
+			accept: "application/pdf,.pdf",
+			multiple: false,
+			onFiles: async ([file]) => {
+				current = { file, bytes: null, pages: null, error: false };
+				render();
+				try {
+					current.bytes = new Uint8Array(await file.arrayBuffer());
+					const doc = await PDFLib.PDFDocument.load(current.bytes, { ignoreEncryption: true });
+					current.pages = doc.getPageCount();
+				} catch (e) {
+					current.error = true;
+				}
+				render();
+			}
+		});
+
+		function render() {
+			$("list").innerHTML = current ? `
+				<li class="file-item">
+					<span class="thumb"><i class="fa-regular fa-file-pdf"></i></span>
+					<div class="meta">
+						<div class="name">${Lab.escape(current.file.name)}</div>
+						<div class="sub">${current.error ? "Could not read this PDF" : (current.pages ?? "…") + " pages"} · ${Lab.formatBytes(current.file.size)}</div>
+					</div>
+					<button class="icon-btn" id="del" aria-label="Remove"><i class="fa-solid fa-xmark"></i></button>
+				</li>` : "";
+			$("go").disabled = !current || current.error || !current.pages;
+			$("clear").disabled = !current;
+			Lab.status($("status"), "");
+		}
+
+		$("list").addEventListener("click", (e) => {
+			if (e.target.closest("#del")) {
+				current = null;
+				render();
+			}
+		});
+		$("clear").addEventListener("click", () => {
+			current = null;
+			render();
+		});
+
+		function label(n, total) {
+			const f = $("fmt").value;
+			if (f === "page") return "Page " + n;
+			if (f === "of") return n + " / " + total;
+			return String(n);
+		}
+
+		// Map a point in the page's visible (rotated) frame to unrotated PDF user space.
+		function place(page, vx, vy) {
+			const box = page.getCropBox();
+			const rot = ((page.getRotation().angle % 360) + 360) % 360;
+			const W = box.width, H = box.height;
+			let x, y;
+			if (rot === 90) { x = W - vy; y = vx; }
+			else if (rot === 180) { x = W - vx; y = H - vy; }
+			else if (rot === 270) { x = vy; y = H - vx; }
+			else { x = vx; y = vy; }
+			return { x: box.x + x, y: box.y + y, rotate: PDFLib.degrees(rot) };
+		}
+
+		$("go").addEventListener("click", async () => {
+			$("go").disabled = true;
+			Lab.status($("status"), "Working…");
+			try {
+				const doc = await PDFLib.PDFDocument.load(current.bytes, { ignoreEncryption: true });
+				const font = await doc.embedFont(PDFLib.StandardFonts.Helvetica);
+				const size = Math.min(48, Math.max(5, +$("size").value || 11));
+				const start = Math.round(+$("start").value || 0);
+				const skip = $("skipFirst").checked;
+				const pos = $("pos").value;
+				const pages = doc.getPages();
+				const numbered = pages.length - (skip ? 1 : 0);
+				const total = start + numbered - 1;
+
+				pages.forEach((page, i) => {
+					if (skip && i === 0) return;
+					const text = label(start + i - (skip ? 1 : 0), total);
+					const box = page.getCropBox();
+					const rot = ((page.getRotation().angle % 360) + 360) % 360;
+					const vw = rot % 180 ? box.height : box.width;
+					const vh = rot % 180 ? box.width : box.height;
+					const margin = Math.max(18, Math.min(vw, vh) * 0.045);
+					const tw = font.widthOfTextAtSize(text, size);
+					let vx;
+					if (pos[1] === "c") vx = (vw - tw) / 2;
+					else if (pos[1] === "r") vx = vw - margin - tw;
+					else vx = margin;
+					const vy = pos[0] === "b" ? margin : vh - margin - size * 0.75;
+					const p = place(page, vx, vy);
+					page.drawText(text, { x: p.x, y: p.y, size, font, color: PDFLib.rgb(0, 0, 0), rotate: p.rotate });
+				});
+
+				const bytes = await doc.save();
+				const name = current.file.name.replace(/\.pdf$/i, "") + "_numbered.pdf";
+				Lab.download(bytes, name, "application/pdf");
+				Lab.status($("status"), `Done: numbered ${numbered} pages, ${Lab.formatBytes(bytes.length)}`, "ok");
+			} catch (e) {
+				Lab.status($("status"), "Failed: " + e.message, "error");
+			}
+			$("go").disabled = false;
+		});
+	</script>
+</body>
+
+</html>

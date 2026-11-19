@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Deadline Converter (AoE) | Lab</title>
+	<meta name="description" content="Convert a conference deadline in AoE (Anywhere on Earth, UTC-12) or any time zone to your local time, with a live countdown and a shareable link.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		input[type="datetime-local"] {
+			font: inherit;
+			font-size: 0.92rem;
+			color: var(--ink);
+			background: #fff;
+			border: 1px solid var(--rule-strong);
+			border-radius: 7px;
+			padding: 0.5rem 0.7rem;
+			width: 100%;
+			outline: none;
+			min-height: 2.6rem;
+		}
+
+		.local-time {
+			font-size: 1.35rem;
+			font-weight: 500;
+			color: var(--ink);
+			margin: 0 0 0.25rem;
+		}
+
+		.zones {
+			list-style: none;
+			padding: 0;
+			margin: 0;
+		}
+
+		.zones li {
+			display: flex;
+			justify-content: space-between;
+			gap: 1rem;
+			flex-wrap: wrap;
+			padding: 0.5rem 0;
+			border-bottom: 1px solid var(--rule);
+			font-size: 0.9rem;
+		}
+
+		.zones li:last-child {
+			border-bottom: 0;
+		}
+
+		.zones .zname {
+			color: var(--muted);
+		}
+
+		.zones .ztime {
+			font-variant-numeric: tabular-nums;
+			color: var(--ink);
+		}
+
+		.zones li.is-you .zname,
+		.zones li.is-you .ztime {
+			font-weight: 700;
+			color: var(--ink);
+		}
+
+		.stats.countdown {
+			grid-template-columns: repeat(4, 1fr);
+		}
+
+		@media (max-width: 420px) {
+			.stats.countdown .stat {
+				padding: 0.6rem 0.5rem;
+			}
+
+			.stats.countdown .stat-value {
+				font-size: 1.3rem;
+			}
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Research</div>
+			<h1>Deadline Converter (AoE)</h1>
+			<p>Many conference deadlines are given in AoE, which means "anywhere on Earth". It is UTC-12: the
+				deadline has passed only once it is past that time everywhere on the planet. Enter a deadline to see
+				it in your own time zone, with a countdown.</p>
+		</div>
+
+		<div class="panel">
+			<div class="grid-2">
+				<label class="field">Deadline date and time
+					<input type="datetime-local" id="dt" step="60">
+				</label>
+				<label class="field">Time zone of the deadline
+					<select id="tz"></select>
+				</label>
+			</div>
+			<div class="btn-row">
+				<button type="button" class="btn" id="copyLink"><i class="fa-solid fa-link"></i> Copy link</button>
+				<button type="button" class="btn ghost" id="ics"><i class="fa-solid fa-calendar-plus"></i> Add to calendar (.ics)</button>
+				<button type="button" class="btn ghost" id="eod"><i class="fa-solid fa-clock"></i> Set 23:59</button>
+			</div>
+			<p class="status" id="status"></p>
+		</div>
+
+		<div id="results" hidden>
+			<div class="panel">
+				<p class="panel-title">In your time zone (<span id="youZone"></span>)</p>
+				<p class="local-time" id="localTime"></p>
+				<p class="hint" id="relative" style="margin:0"></p>
+			</div>
+
+			<div class="stats countdown" style="margin-bottom:1rem" id="countdown">
+				<div class="stat"><div class="stat-value" id="cdD">0</div><div class="stat-label">Days</div></div>
+				<div class="stat"><div class="stat-value" id="cdH">0</div><div class="stat-label">Hours</div></div>
+				<div class="stat"><div class="stat-value" id="cdM">0</div><div class="stat-label">Minutes</div></div>
+				<div class="stat"><div class="stat-value" id="cdS">0</div><div class="stat-label">Seconds</div></div>
+			</div>
+
+			<div class="panel">
+				<p class="panel-title">Same moment in other time zones</p>
+				<ul class="zones" id="zones"></ul>
+			</div>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("Deadline Converter");
+
+		const $ = (id) => document.getElementById(id);
+
+		// "AoE" is stored in URLs as AoE; internally it is the fixed offset zone Etc/GMT+12 (POSIX sign is inverted).
+		const AOE_IANA = "Etc/GMT+12";
+		const COMMON = [
+			["AoE", "AoE, Anywhere on Earth (UTC-12)"],
+			["UTC", "UTC"],
+			["America/Los_Angeles", "Pacific Time, PST/PDT (Los Angeles)"],
+			["America/New_York", "Eastern Time, EST/EDT (New York)"],
+			["Europe/London", "UK Time, GMT/BST (London)"],
+			["Europe/Berlin", "Central European Time, CET/CEST (Berlin)"],
+			["Asia/Kolkata", "India Standard Time, IST (Kolkata)"],
+			["Asia/Shanghai", "China Standard Time (Shanghai)"],
+			["Asia/Tokyo", "Japan Standard Time (Tokyo)"]
+		];
+		const OTHERS = [
+			["AoE", "AoE (UTC-12)"],
+			["UTC", "UTC"],
+			["America/Los_Angeles", "Los Angeles"],
+			["America/New_York", "New York"],
+			["Europe/London", "London"],
+			["Europe/Berlin", "Berlin"],
+			["Asia/Kolkata", "India"],
+			["Asia/Dhaka", "Dhaka"],
+			["Asia/Shanghai", "Beijing"],
+			["Asia/Tokyo", "Tokyo"],
+			["Australia/Sydney", "Sydney"]
+		];
+
+		const userTz = (() => {
+			try {
+				return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+			} catch (e) {
+				return "UTC";
+			}
+		})();
+		const iana = (tz) => (tz === "AoE" ? AOE_IANA : tz);
+
+		function validZone(tz) {
+			if (tz === "AoE") return true;
+			try {
+				new Intl.DateTimeFormat("en", { timeZone: tz });
+				return true;
+			} catch (e) {
+				return false;
+			}
+		}
+
+		// Fill the select.
+		(function fillZones() {
+			const sel = $("tz");
+			let h = '<optgroup label="Common">' + COMMON.map(([v, l]) => `<option value="${v}">${Lab.escape(l)}</option>`).join("") + "</optgroup>";
+			let all = [];
+			try {
+				if (typeof Intl.supportedValuesOf === "function") all = Intl.supportedValuesOf("timeZone");
+			} catch (e) { }
+			const common = new Set(COMMON.map((c) => c[0]));
+			if (!all.includes(userTz) && !common.has(userTz)) all = all.concat([userTz]);
+			all = all.filter((z) => !common.has(z)).sort();
+			if (all.length) h += '<optgroup label="All time zones">' + all.map((z) => `<option value="${Lab.escape(z)}">${Lab.escape(z.replace(/_/g, " "))}</option>`).join("") + "</optgroup>";
+			sel.innerHTML = h;
+		})();
+
+		// Offset in minutes of a time zone at a UTC instant (local wall clock minus UTC).
+		function offsetAt(utcMs, tz) {
+			const parts = new Intl.DateTimeFormat("en-US", {
+				timeZone: tz,
+				hourCycle: "h23",
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit"
+			}).formatToParts(new Date(utcMs));
+			const g = (t) => +parts.find((p) => p.type === t).value;
+			const wall = Date.UTC(g("year"), g("month") - 1, g("day"), g("hour") % 24, g("minute"), g("second"));
+			return Math.round((wall - Math.floor(utcMs / 1000) * 1000) / 60000);
+		}
+
+		// Convert a wall-clock time in tz to a UTC instant.
+		function wallToUtc(y, mo, d, h, mi, tz) {
+			const wall = Date.UTC(y, mo - 1, d, h, mi);
+			let utc = wall - offsetAt(wall, tz) * 60000;
+			const off2 = offsetAt(utc, tz);
+			utc = wall - off2 * 60000;
+			return utc;
+		}
+
+		function fmtIn(utcMs, tz) {
+			return new Intl.DateTimeFormat("en-GB", {
+				timeZone: tz,
+				weekday: "short",
+				day: "numeric",
+				month: "short",
+				year: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+				hourCycle: "h23"
+			}).format(new Date(utcMs));
+		}
+
+		function offsetLabel(utcMs, tz) {
+			const o = offsetAt(utcMs, tz);
+			const sign = o < 0 ? "-" : "+";
+			const a = Math.abs(o);
+			return "UTC" + sign + Math.floor(a / 60) + (a % 60 ? ":" + String(a % 60).padStart(2, "0") : "");
+		}
+
+		let deadline = null;
+		let timer = null;
+
+		function readForm() {
+			const v = $("dt").value;
+			const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
+			if (!m) return null;
+			return { y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5], tz: $("tz").value, raw: m[0] };
+		}
+
+		function syncUrl(f) {
+			try {
+				const q = f ? "?d=" + f.raw + "&tz=" + encodeURIComponent(f.tz).replace(/%2F/g, "/") : "";
+				history.replaceState(null, "", location.pathname + q + location.hash);
+			} catch (e) { }
+		}
+
+		function update() {
+			const f = readForm();
+			syncUrl(f);
+			if (!f) {
+				deadline = null;
+				$("results").hidden = true;
+				Lab.status($("status"), "Pick a date and time.");
+				return;
+			}
+			const tz = iana(f.tz);
+			deadline = wallToUtc(f.y, f.mo, f.d, f.h, f.mi, tz);
+			$("results").hidden = false;
+			Lab.status($("status"), "");
+
+			$("youZone").textContent = userTz.replace(/_/g, " ") + ", " + offsetLabel(deadline, userTz);
+			$("localTime").textContent = fmtIn(deadline, userTz);
+
+			const list = OTHERS.slice();
+			if (!list.some(([z]) => iana(z) === tz)) list.unshift([f.tz, f.tz.replace(/_/g, " ")]);
+			$("zones").innerHTML = list
+				.map(([z, label]) => {
+					const zi = iana(z);
+					const isSource = zi === tz;
+					const off = z === "AoE" ? "" : " (" + offsetLabel(deadline, zi) + ")";
+					return `<li${isSource ? ' class="is-you"' : ""}><span class="zname">${Lab.escape(label)}${off}${isSource ? ", as given" : ""}</span><span class="ztime">${fmtIn(deadline, zi)}</span></li>`;
+				})
+				.join("");
+			tick();
+		}
+
+		function tick() {
+			if (deadline === null) return;
+			let diff = deadline - Date.now();
+			const past = diff < 0;
+			diff = Math.abs(diff);
+			const s = Math.floor(diff / 1000);
+			$("cdD").textContent = Math.floor(s / 86400);
+			$("cdH").textContent = Math.floor((s % 86400) / 3600);
+			$("cdM").textContent = Math.floor((s % 3600) / 60);
+			$("cdS").textContent = s % 60;
+			if (past) {
+				Lab.status($("relative"), "This deadline has passed. The countdown shows how long ago.", "error");
+			} else {
+				const days = Math.floor(s / 86400);
+				Lab.status($("relative"), days === 0 ? "Less than a day left." : `${days} day${days === 1 ? "" : "s"} and ${Math.floor((s % 86400) / 3600)} hours left.`, days === 0 ? "error" : "");
+			}
+		}
+
+		function icsDate(ms) {
+			return new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+		}
+
+		$("ics").addEventListener("click", () => {
+			if (deadline === null) return;
+			const f = readForm();
+			const ics = [
+				"BEGIN:VCALENDAR",
+				"VERSION:2.0",
+				"PRODID:-//Lab//Deadline Converter//EN",
+				"BEGIN:VEVENT",
+				"UID:" + deadline + "-deadline@lab",
+				"DTSTAMP:" + icsDate(Date.now()),
+				"DTSTART:" + icsDate(deadline),
+				"DTEND:" + icsDate(deadline),
+				"SUMMARY:Deadline (" + f.raw.replace("T", " ") + " " + f.tz + ")",
+				"BEGIN:VALARM",
+				"TRIGGER:-P1D",
+				"ACTION:DISPLAY",
+				"DESCRIPTION:Deadline in one day",
+				"END:VALARM",
+				"END:VEVENT",
+				"END:VCALENDAR"
+			].join("\r\n");
+			Lab.download(ics, "deadline.ics", "text/calendar");
+		});
+
+		$("copyLink").addEventListener("click", (e) => Lab.copy(location.href, e.currentTarget));
+
+		$("eod").addEventListener("click", () => {
+			const v = $("dt").value;
+			const date = v ? v.slice(0, 10) : new Date().toISOString().slice(0, 10);
+			$("dt").value = date + "T23:59";
+			update();
+		});
+
+		$("dt").addEventListener("input", update);
+		$("dt").addEventListener("change", update);
+		$("tz").addEventListener("change", update);
+
+		// Prefill from the URL, e.g. ?d=2026-12-01T23:59&tz=AoE
+		(function init() {
+			const q = new URLSearchParams(location.search);
+			const d = q.get("d");
+			let tz = q.get("tz") || "AoE";
+			if (/^aoe$/i.test(tz)) tz = "AoE";
+			if (!validZone(tz)) {
+				Lab.status($("status"), `Unknown time zone "${tz}" in the link. Using AoE.`, "error");
+				tz = "AoE";
+			}
+			if (![...$("tz").options].some((o) => o.value === tz)) {
+				$("tz").insertAdjacentHTML("beforeend", `<option value="${Lab.escape(tz)}">${Lab.escape(tz)}</option>`);
+			}
+			$("tz").value = tz;
+			if (d && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(d)) {
+				$("dt").value = d.slice(0, 16);
+			} else if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+				$("dt").value = d + "T23:59";
+			}
+			const msg = $("status").textContent;
+			update();
+			if (msg) Lab.status($("status"), msg, "error");
+			timer = setInterval(tick, 1000);
+		})();
+	</script>
+</body>
+
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>LaTeX Table Maker | Lab</title>
+	<meta name="description" content="Paste cells from Excel, Google Sheets or a CSV file and get a booktabs LaTeX table. Runs in your browser.">
+	<meta name="theme-color" content="#faf8f3">
+	<link rel="icon" type="image/x-icon" href="../../assets/img/pro.ico">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+	<link rel="stylesheet" href="../_shared/tool.css">
+	<style>
+		#input {
+			min-height: 180px;
+		}
+
+		#output {
+			min-height: 260px;
+		}
+
+		.opts {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem 1.25rem;
+			margin-bottom: 1rem;
+		}
+
+		.opts label {
+			display: flex;
+			gap: 0.4rem;
+			align-items: center;
+			font-size: 0.88rem;
+			cursor: pointer;
+		}
+
+		.opts input[type="checkbox"] {
+			accent-color: var(--ink);
+		}
+
+		.opt-row {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem 1rem;
+			align-items: center;
+			margin-bottom: 0.85rem;
+		}
+
+		.opt-row > .hint {
+			min-width: 5rem;
+		}
+
+		#alignCustom {
+			width: 160px;
+		}
+
+		.out-head {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 0.5rem;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 0.85rem;
+		}
+
+		.out-head .panel-title {
+			margin: 0;
+		}
+
+		.preview-wrap {
+			overflow-x: auto;
+		}
+
+		.preview {
+			border-collapse: collapse;
+			font-family: var(--serif);
+			font-size: 0.92rem;
+			color: var(--ink);
+			margin: 0 auto;
+			border-top: 2px solid var(--ink);
+			border-bottom: 2px solid var(--ink);
+		}
+
+		.preview caption {
+			caption-side: top;
+			font-size: 0.88rem;
+			color: var(--muted);
+			padding-bottom: 0.5rem;
+		}
+
+		.preview td,
+		.preview th {
+			padding: 0.3rem 0.8rem;
+			white-space: nowrap;
+		}
+
+		.preview thead th {
+			border-bottom: 1px solid var(--ink);
+			font-weight: 400;
+		}
+
+		.preview thead.bold th {
+			font-weight: 700;
+		}
+
+		.preview .empty {
+			color: var(--muted);
+			font-family: var(--sans);
+		}
+	</style>
+</head>
+
+<body>
+	<header id="tool-nav"></header>
+
+	<main class="tool-main">
+		<div class="tool-head">
+			<div class="tool-kicker">Research</div>
+			<h1>LaTeX Table Maker</h1>
+			<p>Copy cells from Excel or Google Sheets, or paste CSV, and get a clean booktabs table ready for your
+				paper.</p>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">Cells</p>
+			<textarea id="input" class="mono" spellcheck="false" placeholder="Paste cells from a spreadsheet, or CSV">Model	Accuracy	F1
+Baseline	71.2	0.68
+Ours (no context)	78.4	0.75
+Ours	81.9	0.80</textarea>
+			<div class="opt-row" style="margin:.85rem 0 0">
+				<span class="hint">Separator</span>
+				<div class="segmented" id="sep">
+					<button class="is-active" data-v="auto">Auto</button>
+					<button data-v="tab">Tab</button>
+					<button data-v="comma">Comma</button>
+					<button data-v="semi">Semicolon</button>
+				</div>
+			</div>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">Options</p>
+			<div class="opts">
+				<label><input type="checkbox" id="header" checked> First row is a header</label>
+				<label><input type="checkbox" id="bold"> Bold header</label>
+				<label><input type="checkbox" id="escape" checked> Escape special characters (&amp; % $ # _ { } ~ ^ \)</label>
+				<label><input type="checkbox" id="wrap" checked> Wrap in table environment</label>
+			</div>
+			<div class="opt-row">
+				<span class="hint">Alignment</span>
+				<div class="segmented" id="align">
+					<button data-v="l">Left</button>
+					<button class="is-active" data-v="c">Center</button>
+					<button data-v="r">Right</button>
+					<button data-v="custom">Per column</button>
+				</div>
+				<input type="text" id="alignCustom" class="mono" placeholder="e.g. lcc" hidden>
+			</div>
+			<div class="grid-2" style="gap:0 1rem">
+				<label class="field">Caption
+					<input type="text" id="caption" placeholder="Results on the test set.">
+				</label>
+				<label class="field">Label
+					<input type="text" id="label" placeholder="tab:results">
+				</label>
+			</div>
+		</div>
+
+		<div class="panel">
+			<p class="panel-title">Preview</p>
+			<div class="preview-wrap" id="preview"></div>
+			<p class="status" id="status" style="margin:.75rem 0 0"></p>
+		</div>
+
+		<div class="panel">
+			<div class="out-head">
+				<p class="panel-title">LaTeX</p>
+				<div class="btn-row">
+					<button class="btn ghost" id="copy"><i class="fa-regular fa-copy"></i> Copy</button>
+					<button class="btn ghost" id="download"><i class="fa-solid fa-download"></i> .tex</button>
+				</div>
+			</div>
+			<textarea id="output" class="mono" readonly spellcheck="false"></textarea>
+			<p class="hint" style="margin:.5rem 0 0">Needs <code>\usepackage{booktabs}</code> in your preamble.</p>
+		</div>
+	</main>
+
+	<footer id="tool-footer"></footer>
+
+	<script src="../_shared/tool.js"></script>
+	<script>
+		Lab.chrome("LaTeX Table Maker");
+
+		const $ = (id) => document.getElementById(id);
+		const state = { sep: "auto", align: "c" };
+
+		// Small CSV/TSV parser that handles quoted cells, doubled quotes and newlines inside quotes.
+		function parse(text, delim) {
+			const rows = [];
+			let row = [], cell = "", q = false;
+			for (let i = 0; i < text.length; i++) {
+				const c = text[i];
+				if (q) {
+					if (c === '"') {
+						if (text[i + 1] === '"') { cell += '"'; i++; } else q = false;
+					} else cell += c;
+				} else if (c === '"' && cell.trim() === "") { q = true; cell = ""; }
+				else if (c === delim) { row.push(cell); cell = ""; }
+				else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+				else if (c !== "\r") cell += c;
+			}
+			row.push(cell);
+			rows.push(row);
+			return rows.map((r) => r.map((c) => c.trim())).filter((r) => r.some((c) => c !== ""));
+		}
+
+		function detect(text) {
+			if (state.sep === "tab") return "\t";
+			if (state.sep === "comma") return ",";
+			if (state.sep === "semi") return ";";
+			if (text.includes("\t")) return "\t";
+			const first = text.split("\n")[0];
+			return (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ";" : ",";
+		}
+
+		const ESC = { "&": "\\&", "%": "\\%", "$": "\\$", "#": "\\#", "_": "\\_", "{": "\\{", "}": "\\}", "~": "\\textasciitilde{}", "^": "\\textasciicircum{}", "\\": "\\textbackslash{}" };
+		const esc = (s) => s.replace(/[&%$#_{}~^\\]/g, (c) => ESC[c]);
+
+		function colSpec(n) {
+			if (state.align !== "custom") return { spec: state.align.repeat(n), cols: Array(n).fill(state.align) };
+			const raw = $("alignCustom").value.replace(/\s+/g, "");
+			const cols = (raw.match(/[lcrX]|[pmb]\{[^}]*\}/g) || []).map((c) => c[0]);
+			if (!cols.length) return { spec: "l".repeat(n), cols: Array(n).fill("l") };
+			let spec = raw;
+			while (cols.length < n) { cols.push(cols[cols.length - 1]); spec += cols[cols.length - 1]; }
+			return { spec, cols, extra: cols.length > n };
+		}
+
+		function update() {
+			const text = $("input").value.replace(/\r\n?/g, "\n");
+			const rows = parse(text, detect(text));
+			if (!rows.length) {
+				$("preview").innerHTML = '<p class="empty hint">Paste some cells above.</p>';
+				$("output").value = "";
+				return Lab.status($("status"), "");
+			}
+			const n = Math.max(...rows.map((r) => r.length));
+			rows.forEach((r) => { while (r.length < n) r.push(""); });
+			const { spec, cols, extra } = colSpec(n);
+			const hasHead = $("header").checked && rows.length > 1;
+			const bold = $("bold").checked;
+			const doEsc = $("escape").checked;
+			const wrap = $("wrap").checked;
+			const caption = $("caption").value.trim();
+			const label = $("label").value.trim();
+
+			// LaTeX
+			const cell = (c, head) => {
+				const t = doEsc ? esc(c) : c;
+				return head && bold && t ? `\\textbf{${t}}` : t;
+			};
+			const line = (r, head) => r.map((c) => cell(c, head)).join(" & ") + " \\\\";
+			const ind = wrap ? "\t" : "";
+			const out = [];
+			if (wrap) {
+				out.push("\\begin{table}[htbp]", "\t\\centering");
+				if (caption) out.push(`\t\\caption{${doEsc ? esc(caption) : caption}}`);
+				if (label) out.push(`\t\\label{${label}}`);
+			}
+			out.push(`${ind}\\begin{tabular}{${spec}}`, `${ind}\t\\toprule`);
+			let body = rows;
+			if (hasHead) {
+				out.push(`${ind}\t${line(rows[0], true)}`, `${ind}\t\\midrule`);
+				body = rows.slice(1);
+			}
+			body.forEach((r) => out.push(`${ind}\t${line(r, false)}`));
+			out.push(`${ind}\t\\bottomrule`, `${ind}\\end{tabular}`);
+			if (wrap) out.push("\\end{table}");
+			$("output").value = out.join("\n");
+
+			// Preview
+			const ta = { l: "left", c: "center", r: "right", X: "left", p: "left", m: "left", b: "left" };
+			const td = (c, i, tag) => `<${tag} style="text-align:${ta[cols[i]] || "left"}">${Lab.escape(c)}</${tag}>`;
+			let html = '<table class="preview">';
+			if (wrap && caption) html += `<caption>Table: ${Lab.escape(caption)}</caption>`;
+			if (hasHead) html += `<thead class="${bold ? "bold" : ""}"><tr>${rows[0].map((c, i) => td(c, i, "th")).join("")}</tr></thead>`;
+			html += "<tbody>" + body.map((r) => `<tr>${r.map((c, i) => td(c, i, "td")).join("")}</tr>`).join("") + "</tbody></table>";
+			$("preview").innerHTML = html;
+
+			const msg = `${rows.length} rows, ${n} columns`;
+			if (extra) Lab.status($("status"), `${msg}. The column string has more columns than the data.`, "error");
+			else Lab.status($("status"), msg);
+		}
+
+		function segmented(id, key, after) {
+			$(id).addEventListener("click", (e) => {
+				const b = e.target.closest("button");
+				if (!b) return;
+				$(id).querySelectorAll("button").forEach((x) => x.classList.toggle("is-active", x === b));
+				state[key] = b.dataset.v;
+				if (after) after();
+				update();
+			});
+		}
+		segmented("sep", "sep");
+		segmented("align", "align", () => {
+			$("alignCustom").hidden = state.align !== "custom";
+			if (state.align === "custom") $("alignCustom").focus();
+		});
+
+		["input", "alignCustom", "caption", "label"].forEach((id) => $(id).addEventListener("input", update));
+		document.querySelectorAll(".opts input").forEach((el) => el.addEventListener("change", update));
+		$("copy").addEventListener("click", (e) => Lab.copy($("output").value, e.currentTarget));
+		$("download").addEventListener("click", () => Lab.download($("output").value, "table.tex", "text/x-tex;charset=utf-8"));
+		update();
+	</script>
+</body>
+
+</html>
