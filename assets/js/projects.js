@@ -13,9 +13,15 @@
 		});
 	}
 	function clean(s) { return (s || "").replace(/\s+/g, " ").trim(); }
+	function ghLabel(u) { return u.replace(/^https?:\/\/(www\.)?github\.com\//, "").replace(/\/$/, ""); }
+	function link(u, icon, text) {
+		return '<a class="proj-link" href="' + esc(u) + '" target="_blank" rel="noopener"><i class="' + icon + '"></i> ' + esc(text) + "</a>";
+	}
 
 	var projects = cards.map(function (card) {
-		var url = clean(card.querySelector(".d-none").textContent);
+		// The hidden div may hold one URL, or a live URL followed by a GitHub URL.
+		var urls = clean(card.querySelector(".d-none").textContent).split(" ");
+		var url = urls[0], repo = urls[1] || "";
 		var title = clean(card.querySelector(".h5").textContent).replace(/^[^\w(]+/, "");
 		var split = title.match(/^(.+?)\s*[:|]\s*(.+)$/);
 		var stackEl = card.querySelector(".fa-computer");
@@ -32,16 +38,15 @@
 			year: (date.match(/\d{4}/) || [""])[0],
 			desc: clean(card.querySelector(".blog-short").textContent),
 			code: host === "github.com",
-			label: host === "github.com" ? url.replace(/^https?:\/\/(www\.)?github\.com\//, "").replace(/\/$/, "") : host
+			label: host === "github.com" ? ghLabel(url) : host,
+			repo: repo
 		};
 	});
 
 	var years = [];
 	projects.forEach(function (p) { if (years.indexOf(p.year) < 0) years.push(p.year); });
 
-	var html = '<p class="proj-summary">' + projects.length + " projects, " +
-		years[years.length - 1] + " to " + years[0] +
-		". Tools for clinicians and researchers, language technology, and a few things built for fun.</p>";
+	var html = "";
 
 	years.forEach(function (y) {
 		html += '<section class="proj-year"><h2 class="proj-year-h2">' + esc(y) + "</h2>";
@@ -55,9 +60,10 @@
 				'<div class="proj-meta"><span class="proj-tags">' +
 				p.stack.map(function (s) { return '<span class="proj-tag">' + esc(s) + "</span>"; }).join("") +
 				"</span>" +
-				'<a class="proj-link" href="' + esc(p.url) + '" target="_blank" rel="noopener">' +
-				'<i class="' + (p.code ? "fa-brands fa-github" : "fa-solid fa-arrow-up-right-from-square") + '"></i> ' +
-				esc(p.label) + "</a></div></article>";
+				'<span class="proj-links">' +
+				link(p.url, p.code ? "fa-brands fa-github" : "fa-solid fa-arrow-up-right-from-square", p.label) +
+				(p.repo ? link(p.repo, "fa-brands fa-github", ghLabel(p.repo)) : "") +
+				"</span></div></article>";
 		});
 		html += "</section>";
 	});

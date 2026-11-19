@@ -791,8 +791,8 @@ input.check-toggle-round-flat:checked+label:after {
 
 
 /* PROJECTS - year-grouped list */
-.proj-summary { color: #6c757d; margin: 4px 0 8px; }
 .proj-year { margin-top: 18px; }
+.proj-year:first-child { margin-top: 0; }
 .proj-year-h2 { font-size: 2.2em; font-weight: 100; margin-bottom: 0; padding-bottom: 6px; border-bottom: 1px #D9DDDC solid; }
 .proj-item { padding: 16px 0 14px; border-bottom: 1px #D9DDDC solid; }
 .proj-year .proj-item:last-child { border-bottom: 0; }
@@ -806,6 +806,7 @@ input.check-toggle-round-flat:checked+label:after {
 .proj-meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
 .proj-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 .proj-tag { border: 1px #D9DDDC solid; border-radius: 4px; padding: 1px 8px; font-size: 12px; }
+.proj-links { display: flex; flex-wrap: wrap; gap: 14px; }
 .proj-link { font-size: 13px; color: #6c757d; text-decoration: none; }
 .proj-link:hover { color: #212529; text-decoration: underline; }
 @media (max-width: 576px) {
