@@ -1,10 +1,10 @@
 {
- "fetched": "2026-11-13T09:07:16+00:00",
+ "fetched": "2026-11-19T05:28:44+00:00",
  "profile": "https://scholar.google.com/citations?user=zjaqexkAAAAJ&hl=en",
  "metrics": {
   "citations": {
-   "all": 202,
-   "recent": 202
+   "all": 203,
+   "recent": 203
   },
   "h_index": {
    "all": 8,
@@ -34,7 +34,7 @@
   },
   {
    "year": 2026,
-   "citations": 76
+   "citations": 77
   }
  ],
  "publications": [
@@ -43,7 +43,7 @@
    "authors": "PK Adhikary, A Srivastava, S Kumar, SM Singh, P Manuja, JK Gopinath, ...",
    "venue": "JMIR Mental Health 11, e57306",
    "year": 2024,
-   "citations": 71,
+   "citations": 72,
    "url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=zjaqexkAAAAJ&pagesize=100&citation_for_view=zjaqexkAAAAJ:ufrVoPGSRksC",
    "citations_url": "https://scholar.google.com/scholar?oi=bibs&hl=en&cites=1878758078594980386"
   },
